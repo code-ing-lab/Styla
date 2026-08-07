@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  @apply bg-cream-bg text-cream-text dark:bg-night-bg dark:text-night-text font-sans transition-colors duration-200;
+}
