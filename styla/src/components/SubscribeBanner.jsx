@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
 
-export default function SubscribeBanner({ message = '사진 분석과 심화 스타일 리포트를 만나보세요.' }) {
+export default function SubscribeBanner({ message = '사진 분석과 심화 리포트, 하루 5회까지 이용하고 싶다면?' }) {
   return (
     <div className="mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-3xl border border-accent-gold/40 bg-accent-gold/5 px-6 py-4">
       <div className="flex items-center gap-3">

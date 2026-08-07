@@ -6,7 +6,7 @@ import LimitModal from '../components/LimitModal'
 import SubscribeBanner from '../components/SubscribeBanner'
 import { useAuth } from '../context/AuthContext'
 import { getTier, TIER, DAILY_LIMIT } from '../lib/tiers'
-import { getGuestUsageCount, incrementGuestUsage } from '../lib/guestUsage'
+import { hasUsedGuestTrial, markGuestTrialUsed } from '../lib/guestUsage'
 import { getTodayUsageCount, incrementTodayUsage } from '../lib/usageLogs'
 import { requestRecommendation } from '../lib/ai'
 import { supabase } from '../lib/supabaseClient'
@@ -45,9 +45,9 @@ export default function Home() {
   const handleSubmit = async (values) => {
     setError(null)
 
-    // 일일 한도 체크
+    // 게스트는 하루 단위가 아니라 평생 1회 한도
     if (tier === TIER.GUEST) {
-      if (getGuestUsageCount() >= DAILY_LIMIT[TIER.GUEST]) {
+      if (hasUsedGuestTrial()) {
         setShowLimitModal(true)
         return
       }
@@ -71,7 +71,7 @@ export default function Home() {
       setStep('result')
 
       if (tier === TIER.GUEST) {
-        incrementGuestUsage()
+        markGuestTrialUsed()
       } else {
         await incrementTodayUsage(user.id)
       }
@@ -97,7 +97,7 @@ export default function Home() {
           title: item.keywords?.join(' · ') ?? '저장된 코디',
           description: item.shortDescription,
           tags: item.keywords ?? [],
-          image_url: null,
+          image_url: result.images?.[index] ?? null,
         })
         next.add(index)
       } else {
@@ -138,10 +138,10 @@ export default function Home() {
       <LimitModal
         open={showLimitModal}
         onClose={() => setShowLimitModal(false)}
-        title={tier === TIER.GUEST ? '오늘의 무료 추천을 모두 사용했어요' : '오늘의 이용 횟수를 모두 사용했어요'}
+        title={tier === TIER.GUEST ? '무료 체험을 다 쓰셨어요' : '오늘의 이용 횟수를 모두 사용했어요'}
         description={
           tier === TIER.GUEST
-            ? '로그인하면 하루 3회까지 코디 추천을 받고, 마음에 드는 코디를 저장할 수 있어요.'
+            ? '로그인하면 하루 3번, 저장 기능까지 이용할 수 있어요.'
             : '프리미엄으로 업그레이드하면 사진 분석과 심화 스타일 리포트를 받아볼 수 있어요.'
         }
         ctaLabel={tier === TIER.GUEST ? '로그인하기' : '프리미엄 구독하기'}

@@ -1,32 +1,11 @@
-const STORAGE_KEY = 'styla-guest-usage'
+// 게스트 무료 체험은 날짜와 무관하게 평생 1회만 허용된다.
+// (하루 단위로 초기화되지 않는, 영구적인 "이미 사용함" 플래그)
+const STORAGE_KEY = 'styla-guest-trial-used'
 
-function todayString() {
-  return new Date().toISOString().slice(0, 10)
+export function hasUsedGuestTrial() {
+  return localStorage.getItem(STORAGE_KEY) === 'true'
 }
 
-function read() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { date: todayString(), count: 0 }
-    const parsed = JSON.parse(raw)
-    if (parsed.date !== todayString()) return { date: todayString(), count: 0 }
-    return parsed
-  } catch {
-    return { date: todayString(), count: 0 }
-  }
-}
-
-function write(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-}
-
-export function getGuestUsageCount() {
-  return read().count
-}
-
-export function incrementGuestUsage() {
-  const state = read()
-  const next = { date: todayString(), count: state.count + 1 }
-  write(next)
-  return next.count
+export function markGuestTrialUsed() {
+  localStorage.setItem(STORAGE_KEY, 'true')
 }

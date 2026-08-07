@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { LogOut, Moon, Settings, Sun, User } from 'lucide-react'
+import { LogOut, Moon, Settings, Sparkle, Sun, User } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabaseClient'
@@ -17,8 +17,12 @@ export default function Header() {
   return (
     <header className="border-b border-cream-border dark:border-night-border bg-cream-card dark:bg-night-card">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-        <Link to="/" className="font-serif text-2xl font-semibold tracking-tight text-cream-text dark:text-night-text">
+        <Link
+          to="/"
+          className="flex items-center gap-1 font-serif text-2xl font-semibold tracking-tight text-cream-text dark:text-night-text"
+        >
           Styla
+          <Sparkle size={14} className="text-accent-green" fill="currentColor" />
         </Link>
 
         <div className="flex items-center gap-2">

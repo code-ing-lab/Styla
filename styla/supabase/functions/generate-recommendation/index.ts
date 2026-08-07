@@ -1,15 +1,12 @@
 // Supabase Edge Function: generate-recommendation
-// 티어(guest / member / premium)에 따라 다른 스키마의 AI 코디 추천 결과를 반환한다.
-// 실제 배포는 Supabase 대시보드/CLI에서 이루어지며, AI API 키는 반드시
-// Supabase Edge Function Secrets(`supabase secrets set AI_API_KEY=...`)로만 주입한다.
-// 프론트엔드(src/**)에는 이 키가 절대 노출되지 않는다.
+// 티어(guest / member / premium)에 따라 다른 스키마의 AI 코디 추천 결과(텍스트+이미지)를 반환한다.
+// OpenAI API 키는 반드시 Supabase Edge Function Secrets(`supabase secrets set OPENAI_API_KEY=...`)로만
+// 주입한다. 프론트엔드(src/**)에는 이 키가 절대 노출되지 않는다.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { IMAGE_COUNT, IMAGE_QUALITY, OPENAI_IMAGE_MODEL, OPENAI_TEXT_MODEL, type Tier } from '../_shared/config.ts'
 
-const AI_API_KEY = Deno.env.get('AI_API_KEY')
-// TODO: 실제 사용할 AI 제공자(예: Anthropic/OpenAI 등)의 엔드포인트로 교체
-const AI_API_ENDPOINT = Deno.env.get('AI_API_ENDPOINT') ?? ''
-
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
 
@@ -17,8 +14,6 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
-type Tier = 'guest' | 'member' | 'premium'
 
 interface RecommendRequestBody {
   // 공통 입력 (모든 티어)
@@ -46,7 +41,6 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RecommendRequestBody = await req.json()
-
     const tier = await resolveTier(req)
     const result = await generateWithRetry(tier, body)
 
@@ -94,14 +88,19 @@ async function generateWithRetry(tier: Tier, input: RecommendRequestBody, maxRet
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const raw = await callAiProvider(tier, input)
-
       if (tier === 'guest') {
-        // 게스트는 JSON 구조 없이 텍스트 2~3문장만 반환
-        return { description: raw.trim() }
+        const description = (await callOpenAIChat(buildTextPrompt('guest', input), false)).trim()
+        const image = await callOpenAIImage(buildGuestImagePrompt(input, description), IMAGE_QUALITY.guest)
+        return { description, images: [image] }
       }
 
-      return JSON.parse(raw)
+      const raw = await callOpenAIChat(buildTextPrompt(tier, input), true)
+      const parsed = JSON.parse(raw)
+
+      const imagePrompts = buildImagePrompts(tier, input, parsed)
+      const images = await Promise.all(imagePrompts.map((prompt) => callOpenAIImage(prompt, IMAGE_QUALITY[tier])))
+
+      return { ...parsed, images }
     } catch (error) {
       lastError = error
       console.warn(`[generate-recommendation] attempt ${attempt} failed:`, error)
@@ -111,65 +110,161 @@ async function generateWithRetry(tier: Tier, input: RecommendRequestBody, maxRet
   throw lastError instanceof Error ? lastError : new Error('AI 응답 생성/파싱 실패')
 }
 
-async function callAiProvider(tier: Tier, input: RecommendRequestBody): Promise<string> {
-  if (!AI_API_KEY || !AI_API_ENDPOINT) {
-    throw new Error('AI_API_KEY / AI_API_ENDPOINT가 설정되지 않았습니다 (Edge Function Secrets 확인)')
+async function callOpenAIChat(prompt: string, jsonMode: boolean): Promise<string> {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY가 설정되지 않았습니다 (Edge Function Secrets 확인)')
   }
 
-  const prompt = buildPrompt(tier, input)
-
-  // TODO: 실제 AI 제공자 API 스펙에 맞게 요청/응답 파싱 구현
-  const response = await fetch(AI_API_ENDPOINT, {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${AI_API_KEY}`,
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({
+      model: OPENAI_TEXT_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+    }),
   })
 
   if (!response.ok) {
-    throw new Error(`AI API 호출 실패: ${response.status}`)
+    throw new Error(`OpenAI 텍스트 생성 실패 (${response.status}): ${await response.text()}`)
   }
 
   const data = await response.json()
-  return data.text ?? data.content ?? ''
+  return data.choices?.[0]?.message?.content ?? ''
 }
 
-function buildPrompt(tier: Tier, input: RecommendRequestBody): string {
-  const base = `사용자 정보: ${JSON.stringify(input)}`
+async function callOpenAIImage(prompt: string, quality: 'medium' | 'high'): Promise<string> {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY가 설정되지 않았습니다 (Edge Function Secrets 확인)')
+  }
+
+  const response = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_IMAGE_MODEL,
+      prompt,
+      size: '1024x1024',
+      quality,
+      n: 1,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`OpenAI 이미지 생성 실패 (${response.status}): ${await response.text()}`)
+  }
+
+  const data = await response.json()
+  const b64 = data.data?.[0]?.b64_json
+  if (b64) return `data:image/png;base64,${b64}`
+
+  const url = data.data?.[0]?.url
+  if (url) return url
+
+  throw new Error('OpenAI 이미지 응답에 이미지 데이터가 없습니다.')
+}
+
+function describeInput(input: RecommendRequestBody): string {
+  const parts = [
+    `성별 ${input.gender}`,
+    `키 ${input.height}cm`,
+    `몸무게 ${input.weight}kg`,
+    input.age && `나이 ${input.age}세`,
+    input.bust && `가슴둘레 ${input.bust}cm`,
+    input.waist && `허리둘레 ${input.waist}cm`,
+    input.hip && `엉덩이둘레 ${input.hip}cm`,
+    input.legLength && `다리길이 ${input.legLength}cm`,
+    input.season && `계절/날씨 ${input.season}`,
+    input.tpo && `TPO ${input.tpo}`,
+    input.personalColor && `퍼스널컬러 ${input.personalColor}`,
+    input.faceShape && `얼굴형 ${input.faceShape}`,
+    input.bodyComplex?.length && `체형 고민 ${input.bodyComplex.join(', ')}`,
+  ].filter(Boolean)
+  return parts.join(', ')
+}
+
+function buildTextPrompt(tier: Tier, input: RecommendRequestBody): string {
+  const profile = describeInput(input)
 
   if (tier === 'guest') {
-    return `${base}\n\n위 정보를 바탕으로 코디를 2~3문장으로 짧게 추천해줘. JSON 없이 텍스트만.`
+    return `다음 사용자 정보를 참고해 어울리는 코디를 자연스러운 한국어로 2~3문장만 추천해줘. JSON이나 목록 없이 문장으로만 답해줘.\n사용자 정보: ${profile}`
   }
 
   if (tier === 'member') {
-    return `${base}\n\n아래 JSON 스키마를 반드시 지켜서 3개 코디를 추천해줘 (JSON만 출력):
+    return `다음 사용자 정보를 참고해 서로 다른 코디 3벌을 추천하고, 아래 JSON 스키마를 정확히 지켜서 JSON만 출력해줘 (설명 문장 없이 JSON만):
 {
-  "items": [{ "keywords": ["string"], "shortDescription": "string" }],
-  "analysis": "string",
-  "tips": "string"
-}`
+  "items": [
+    { "keywords": ["string", "string"], "shortDescription": "string" }
+  ],
+  "analysis": "체형·분위기에 대한 2~3문장 분석",
+  "tips": "스타일링 팁 1~2문장"
+}
+items 배열은 정확히 3개여야 해.
+사용자 정보: ${profile}`
   }
 
   // premium
-  return `${base}\n\n아래 JSON 스키마를 반드시 지켜서 심화 리포트를 작성해줘 (JSON만 출력):
+  return `다음 사용자 정보를 참고해 심화 스타일 리포트를 작성하고, 아래 JSON 스키마를 정확히 지켜서 JSON만 출력해줘 (설명 문장 없이 JSON만):
 {
   "bodyType": { "primary": "string", "primaryPercent": 0, "secondary": "string", "secondaryPercent": 0 },
   "confidence": 0,
   "keywords": ["string"],
   "styleGuide": {
-    "top": { "recommended": [], "avoid": [], "reason": "" },
-    "bottom": { "recommended": [], "avoid": [], "reason": "" },
-    "dress": { "recommended": [], "avoid": [], "reason": "" },
-    "outer": { "recommended": [], "avoid": [], "reason": "" }
+    "top": { "recommended": ["string"], "avoid": ["string"], "reason": "string" },
+    "bottom": { "recommended": ["string"], "avoid": ["string"], "reason": "string" },
+    "dress": { "recommended": ["string"], "avoid": ["string"], "reason": "string" },
+    "outer": { "recommended": ["string"], "avoid": ["string"], "reason": "string" }
   },
   "detailGuide": {
-    "neckline": { "recommended": [], "avoid": [], "reason": "" },
-    "sleeve": { "recommended": [], "avoid": [], "reason": "" },
-    "waistDetail": { "recommended": [], "avoid": [], "reason": "" },
-    "length": { "recommended": [], "avoid": [], "reason": "" }
+    "neckline": { "recommended": ["string"], "avoid": ["string"], "reason": "string" },
+    "sleeve": { "recommended": ["string"], "avoid": ["string"], "reason": "string" },
+    "waistDetail": { "recommended": ["string"], "avoid": ["string"], "reason": "string" },
+    "length": { "recommended": ["string"], "avoid": ["string"], "reason": "string" }
   },
-  "summary": { "oneLiner": "", "keyFormulas": ["", "", ""] }
-}`
+  "summary": { "oneLiner": "string", "keyFormulas": ["string", "string", "string"] }
+}
+confidence는 0~5 사이 소수, primaryPercent와 secondaryPercent의 합은 100이어야 해.
+사용자 정보: ${profile}`
+}
+
+function buildGuestImagePrompt(input: RecommendRequestBody, description: string): string {
+  return `패션 화보 스타일의 코디 이미지를 만들어줘. 한 장의 이미지 안에 코디를 3가지 각도/구성으로 보여주는 1x3 그리드 콜라주 형태로 구성해줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${describeInput(
+    input
+  )}. 코디 컨셉: ${description}`
+}
+
+function buildImagePrompts(
+  tier: Tier,
+  input: RecommendRequestBody,
+  parsed: Record<string, unknown>
+): string[] {
+  const profile = describeInput(input)
+  const count = IMAGE_COUNT[tier]
+
+  if (tier === 'member') {
+    const items = Array.isArray(parsed.items) ? (parsed.items as Array<{ keywords?: string[]; shortDescription?: string }>) : []
+    return Array.from({ length: count }).map((_, i) => {
+      const item = items[i]
+      const keywords = item?.keywords?.join(', ') ?? ''
+      return `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 스타일 키워드: ${keywords}. 설명: ${
+        item?.shortDescription ?? ''
+      }`
+    })
+  }
+
+  // premium: 카테고리별로 다른 각도의 코디 이미지를 만든다.
+  const CATEGORY_HINTS = ['상의 중심 데일리룩', '하의 중심 룩', '원피스 룩', '아우터 포인트 룩', '오피스/포멀 룩', '주말 캐주얼 룩']
+  const keywords = Array.isArray(parsed.keywords) ? (parsed.keywords as string[]).join(', ') : ''
+  return Array.from({ length: count }).map(
+    (_, i) =>
+      `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 전체 스타일 키워드: ${keywords}. 이번 컷의 컨셉: ${
+        CATEGORY_HINTS[i % CATEGORY_HINTS.length]
+      }`
+  )
 }

@@ -2,6 +2,12 @@ import { Heart, Star } from 'lucide-react'
 import PlaceholderImage from './PlaceholderImage'
 import { TIER } from '../lib/tiers'
 
+// AI가 생성한 이미지가 있으면 그대로 보여주고, 없으면(생성 실패/미연동 등) 플레이스홀더로 대체한다.
+function ResultImage({ src, alt, className }) {
+  if (!src) return <PlaceholderImage className={className} />
+  return <img src={src} alt={alt} className={`rounded-2xl object-cover ${className}`} />
+}
+
 export default function ResultView({ tier, result, savedIndexes = new Set(), onToggleSave }) {
   if (!result) return null
 
@@ -11,9 +17,10 @@ export default function ResultView({ tier, result, savedIndexes = new Set(), onT
 }
 
 function GuestResult({ result }) {
+  // 게스트는 개별 이미지가 아니라 1x3 그리드 형태로 합성된 이미지 한 장을 받는다.
   return (
-    <div className="mx-auto max-w-md rounded-3xl border border-cream-border bg-cream-card p-6 shadow-sm dark:border-night-border dark:bg-night-card">
-      <PlaceholderImage className="aspect-[3/4] w-full" />
+    <div className="mx-auto max-w-lg rounded-3xl border border-cream-border bg-cream-card p-6 shadow-sm dark:border-night-border dark:bg-night-card">
+      <ResultImage src={result.images?.[0]} alt="AI 코디 추천" className="aspect-[3/1] w-full" />
       <p className="mt-4 text-sm leading-relaxed text-cream-text dark:text-night-text">{result.description}</p>
     </div>
   )
@@ -29,7 +36,7 @@ function MemberResult({ result, savedIndexes, onToggleSave }) {
             className="rounded-3xl border border-cream-border bg-cream-card p-4 shadow-sm dark:border-night-border dark:bg-night-card"
           >
             <div className="relative">
-              <PlaceholderImage className="aspect-[3/4] w-full" />
+              <ResultImage src={result.images?.[index]} alt={item.shortDescription} className="aspect-[3/4] w-full" />
               <button
                 type="button"
                 onClick={() => onToggleSave?.(index)}
@@ -69,7 +76,7 @@ function PremiumResult({ result }) {
     <div className="mx-auto max-w-5xl">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
         {Array.from({ length: 6 }).map((_, index) => (
-          <PlaceholderImage key={index} className="aspect-[3/4] w-full" />
+          <ResultImage key={index} src={result.images?.[index]} alt={`추천 코디 ${index + 1}`} className="aspect-[3/4] w-full" />
         ))}
       </div>
 

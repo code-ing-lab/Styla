@@ -127,7 +127,7 @@ export default function StyleQuiz({ onComplete }) {
           onClick={() => onComplete(resultType)}
           className="mt-4 block w-full rounded-full bg-accent-green px-6 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >
-          AI 코디 추천 받아보기
+          내 체형 기반 진짜 AI 코디 추천 받아보기
         </button>
       </div>
     )
