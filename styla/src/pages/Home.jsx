@@ -27,11 +27,12 @@ export default function Home() {
   const [savedIndexes, setSavedIndexes] = useState(new Set())
 
   useEffect(() => {
+    console.log('[home debug] effect fired: authLoading =', authLoading, ', isLoggedIn =', isLoggedIn)
     if (authLoading) return
     setStep((prev) => {
-      if (prev === null) return isLoggedIn ? 'form' : 'quiz'
-      if (isLoggedIn && prev === 'quiz') return 'form'
-      return prev
+      const next = prev === null ? (isLoggedIn ? 'form' : 'quiz') : isLoggedIn && prev === 'quiz' ? 'form' : prev
+      console.log('[home debug] step:', prev, '->', next)
+      return next
     })
   }, [authLoading, isLoggedIn])
 
