@@ -155,6 +155,13 @@ export default function StyleQuiz({ onComplete }) {
           </button>
         ))}
       </div>
+      <button
+        type="button"
+        onClick={() => onComplete(null)}
+        className="mt-6 w-full text-center text-xs text-cream-subtext underline underline-offset-4 hover:text-cream-text dark:text-night-text/60 dark:hover:text-night-text"
+      >
+        테스트 건너뛰고 AI 코디 추천 바로가기
+      </button>
     </div>
   )
 }
