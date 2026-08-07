@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import StyleQuiz from '../components/StyleQuiz'
 import RecommendForm from '../components/RecommendForm'
 import ResultView from '../components/ResultView'
@@ -15,14 +15,27 @@ export default function Home() {
   const { isLoggedIn, isPremium, user, loading: authLoading } = useAuth()
   const tier = getTier({ isLoggedIn, isPremium })
 
-  const [step, setStep] = useState(isLoggedIn ? 'form' : 'quiz')
+  // step은 authLoading이 끝나기 전엔 알 수 없으므로 null로 시작한다.
+  // (OAuth 로그인 리디렉션 직후에는 세션 반영이 살짝 늦게 끝날 수 있어서,
+  //  isLoggedIn을 useState 초기값으로 바로 써버리면 로그인 상태인데도
+  //  게스트용 스타일 테스트 화면이 뜨는 문제가 생긴다.)
+  const [step, setStep] = useState(null)
   const [result, setResult] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [showLimitModal, setShowLimitModal] = useState(false)
   const [savedIndexes, setSavedIndexes] = useState(new Set())
 
-  if (authLoading) {
+  useEffect(() => {
+    if (authLoading) return
+    setStep((prev) => {
+      if (prev === null) return isLoggedIn ? 'form' : 'quiz'
+      if (isLoggedIn && prev === 'quiz') return 'form'
+      return prev
+    })
+  }, [authLoading, isLoggedIn])
+
+  if (authLoading || step === null) {
     return <p className="py-24 text-center text-sm text-cream-subtext dark:text-night-text/60">불러오는 중...</p>
   }
 
