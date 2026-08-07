@@ -1,11 +1,18 @@
-import { Link } from 'react-router-dom'
-import { Moon, Sun, User } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { LogOut, Moon, Sun, User } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabaseClient'
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme()
   const { isLoggedIn, isPremium } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    navigate('/')
+  }
 
   return (
     <header className="border-b border-cream-border dark:border-night-border bg-cream-card dark:bg-night-card">
@@ -16,14 +23,25 @@ export default function Header() {
 
         <div className="flex items-center gap-2">
           {isLoggedIn ? (
-            <Link
-              to="/mypage"
-              className="flex items-center gap-1.5 rounded-full border border-cream-border px-3 py-2 text-xs font-medium text-cream-text hover:bg-cream-bg dark:border-night-border dark:text-night-text dark:hover:bg-night-bg"
-            >
-              <User size={14} />
-              마이페이지
-              {isPremium && <span className="text-accent-gold">·프리미엄</span>}
-            </Link>
+            <>
+              <Link
+                to="/mypage"
+                className="flex items-center gap-1.5 rounded-full border border-cream-border px-3 py-2 text-xs font-medium text-cream-text hover:bg-cream-bg dark:border-night-border dark:text-night-text dark:hover:bg-night-bg"
+              >
+                <User size={14} />
+                마이페이지
+                {isPremium && <span className="text-accent-gold">·프리미엄</span>}
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                aria-label="로그아웃"
+                className="flex items-center gap-1.5 rounded-full border border-cream-border px-3 py-2 text-xs font-medium text-cream-text hover:bg-cream-bg dark:border-night-border dark:text-night-text dark:hover:bg-night-bg"
+              >
+                <LogOut size={14} />
+                로그아웃
+              </button>
+            </>
           ) : (
             <Link
               to="/login"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import StyleQuiz from '../components/StyleQuiz'
 import RecommendForm from '../components/RecommendForm'
 import ResultView from '../components/ResultView'
@@ -25,16 +25,16 @@ export default function Home() {
   const [error, setError] = useState(null)
   const [showLimitModal, setShowLimitModal] = useState(false)
   const [savedIndexes, setSavedIndexes] = useState(new Set())
+  const prevIsLoggedIn = useRef(null)
 
+  // 로그인/로그아웃으로 티어가 바뀌면 그 티어의 기본 화면으로 되돌린다.
   useEffect(() => {
-    console.log('[home debug] effect fired: authLoading =', authLoading, ', isLoggedIn =', isLoggedIn)
     if (authLoading) return
-    setStep((prev) => {
-      const next = prev === null ? (isLoggedIn ? 'form' : 'quiz') : isLoggedIn && prev === 'quiz' ? 'form' : prev
-      console.log('[home debug] step:', prev, '->', next)
-      return next
-    })
-  }, [authLoading, isLoggedIn])
+    if (step === null || prevIsLoggedIn.current !== isLoggedIn) {
+      setStep(isLoggedIn ? 'form' : 'quiz')
+      prevIsLoggedIn.current = isLoggedIn
+    }
+  }, [authLoading, isLoggedIn, step])
 
   if (authLoading || step === null) {
     return <p className="py-24 text-center text-sm text-cream-subtext dark:text-night-text/60">불러오는 중...</p>

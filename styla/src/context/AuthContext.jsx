@@ -13,13 +13,11 @@ export function AuthProvider({ children }) {
 
     supabase.auth.getSession().then(({ data }) => {
       if (!isMounted) return
-      console.log('[auth debug] getSession resolved:', data.session ? `logged in as ${data.session.user.email}` : 'no session')
       setSession(data.session)
       setLoading(false)
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      console.log('[auth debug] onAuthStateChange:', _event, newSession ? `logged in as ${newSession.user.email}` : 'no session')
       setSession(newSession)
     })
 
