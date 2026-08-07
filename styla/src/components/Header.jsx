@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { LogOut, Moon, Sun, User } from 'lucide-react'
+import { LogOut, Moon, Settings, Sun, User } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabaseClient'
@@ -31,6 +31,13 @@ export default function Header() {
                 <User size={14} />
                 마이페이지
                 {isPremium && <span className="text-accent-gold">·프리미엄</span>}
+              </Link>
+              <Link
+                to="/settings"
+                aria-label="설정"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-cream-border text-cream-text hover:bg-cream-bg dark:border-night-border dark:text-night-text dark:hover:bg-night-bg"
+              >
+                <Settings size={16} />
               </Link>
               <button
                 type="button"
