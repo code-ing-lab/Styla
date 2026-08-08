@@ -81,7 +81,8 @@
 
 프로젝트 초기화, 디자인 시스템, DB 스키마, 유저 권한 구조, 게스트/로그인/프리미엄
 전체 플로우, 라우팅, 전환 유도 CTA, OAuth+이메일 인증, 비밀번호 재설정/변경,
-회원탈퇴, usage_logs 보안 강화, 이미지 1회=1장 개편(1-1), 초기 입력 폼 간소화(2-1)
+회원탈퇴, usage_logs 보안 강화, 이미지 1회=1장 개편(1-1), 초기 입력 폼 간소화(2-1),
+저장한 코디에 티어/계절/TPO/AI 원본 결과(jsonb) 저장 + 마이페이지 이미지·전체 진단 보기
 — 전부 완료 및 브랜치에 푸시됨.
 
 ## 진행 중 / 다음 할 일 (Styla+ 개선 우선순위, 사용자가 준 순서)
@@ -101,8 +102,19 @@
   `profiles` 테이블 스키마도 이 필드 구성에 맞춰 `season`/`tpo`/`preferred_mood` 컬럼 추가 + `body_complex`를
   `text[]`→`text`로 변경함 (단, `profiles` 테이블은 여전히 프론트에서 실제로 읽거나 쓰지 않음 — 스키마만
   맞춰둔 상태). CSS/전환 효과(아코디언 애니메이션 등)는 2-2에서 다룰 예정이라 미적용.
+- [x] 🟢 `saved_items` 스키마 확장 — **완료**. 사용자가 "저장한 코디를 나중에 사진과 함께 진단 내용까지
+  복기하고 싶다"고 해서, `saved_items`에 `tier`/`season`/`tpo`/`result`(jsonb, AI 원본 응답 전체) 컬럼을
+  추가함. `Home.jsx`의 `handleToggleSave`가 저장 시 이 값들을 실제로 채워 넣도록 연결했고(제출 당시
+  `values`를 `lastValues`로 보관해뒀다가 `season`/`tpo`를 꺼내 씀), `MyPage.jsx`의 저장한 코디 카드에도
+  이미지 표시 + "전체 진단 보기" 토글(`item.result`를 그대로 JSON pretty-print)을 추가함 — 예쁘게 다듬는
+  건 나중, 지금은 데이터가 안 죽고 남게 하는 것까지만.
+  이 작업은 **기존 Supabase 테이블을 통째로 drop 후 재생성하는 방식**으로 반영함(사용자가 테스트 데이터만
+  있어서 다 지우고 새로 시작하기로 함) → `supabase/migrations/2026-08-08_full_reset.sql` 실행하면 됨(⚠️
+  파괴적 작업, 기존 데이터 전부 삭제됨). 이전에 만들어뒀던 `2026-08-08_profiles_2-1_sync.sql`(ALTER 방식
+  증분 마이그레이션)은 이걸로 대체되어 삭제함.
 - [ ] 🟡 2-2: 결과 리빌 애니메이션(fade-in/카드 flip) + 로딩 스켈레톤 (새 라이브러리 추가 없이 Tailwind transition으로)
-- [ ] 🟡 2-3: 저장한 코디에 계절/TPO 메타데이터 저장 + 마이페이지 필터 탭 — **`saved_items` 테이블에 `season`/`tpo` 컬럼 추가하는 마이그레이션 SQL 필요** (사용자가 Supabase SQL Editor에서 직접 실행해야 함)
+- [ ] 🟡 2-3: 마이페이지에 계절/TPO 필터 탭 추가 — **DB 컬럼(`season`/`tpo`)과 저장 로직은 위에서 이미
+  완료**, 남은 건 `MyPage.jsx`에서 이 값 기준으로 필터링하는 탭 UI뿐
 - [ ] 🔵 추후 검토(보류): LLM 모델 경량화, 제휴 마케팅 링크, `/blog` SEO 페이지, 광고 시청 보상형 충전, 게이미피케이션+퀴즈 개편
 - [ ] ⚪ 별도 진행(코드 작업 아님): 커스텀 도메인 구매+Netlify 연결, 구글 애드센스 신청, 제휴 마케팅 프로그램 가입
 
@@ -112,10 +124,12 @@
 
 ## 아직 사용자가 안 했을 수도 있는 것 (재확인 필요)
 
-- `supabase/migrations/2026-08-08_profiles_2-1_sync.sql` 실행 여부 — 2-1에서 바뀐 `profiles` 테이블
-  컬럼(`season`/`tpo`/`preferred_mood` 추가, `body_complex` text[]→text)을 맞추는 마이그레이션.
-  테이블이 이미 있든 없든, 몇 번을 실행해도 안전하게(idempotent) 작성해뒀음. Supabase 대시보드 →
-  SQL Editor에 파일 내용을 그대로 붙여넣어 실행하면 됨.
+- `supabase/migrations/2026-08-08_full_reset.sql` 실행 여부 — ⚠️ **파괴적 작업**. 기존
+  profiles/saved_items/usage_logs/subscriptions 테이블과 데이터를 전부 drop한 뒤 최신 스키마(2-1
+  필드 개편 + saved_items의 tier/season/tpo/result 확장 반영)로 재생성함. Supabase 대시보드 →
+  SQL Editor에 파일 내용을 그대로 붙여넣어 실행하면 됨. 이후로는 `schema.sql`이 최신 스키마 기준.
+  (예전에 있던 ALTER 방식 증분 마이그레이션 `2026-08-08_profiles_2-1_sync.sql`은 이 파일로 대체되어
+  삭제했음 — 더 이상 필요 없음.)
 - Edge Function 실제 배포 여부 (`npm run functions:deploy`)
 - `OPENAI_API_KEY` secret 등록 여부
 - `usage_logs` RLS 정책 마이그레이션 SQL 실행 여부:

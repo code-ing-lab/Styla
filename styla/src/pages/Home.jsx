@@ -21,6 +21,7 @@ export default function Home() {
   //  게스트용 스타일 테스트 화면이 뜨는 문제가 생긴다.)
   const [step, setStep] = useState(null)
   const [result, setResult] = useState(null)
+  const [lastValues, setLastValues] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [showLimitModal, setShowLimitModal] = useState(false)
@@ -67,6 +68,7 @@ export default function Home() {
     try {
       const data = await requestRecommendation(values)
       setResult(data)
+      setLastValues(values)
       setSaved(false)
       setStep('result')
 
@@ -99,12 +101,18 @@ export default function Home() {
       tier === TIER.PREMIUM ? result.summary?.keyFormulas?.join(' · ') ?? '' : result.paragraphs?.join('\n\n') ?? ''
 
     try {
+      // result 전체를 jsonb로 같이 저장해서, 나중에 마이페이지에서 저장한 코디를 열어봤을 때
+      // 당시 AI가 준 진단 내용(체형분석/스타일가이드 등)을 그대로 복기할 수 있게 한다.
       await supabase.from('saved_items').insert({
         user_id: user.id,
+        tier,
         title,
         description,
         tags: result.keywords ?? [],
         image_url: result.images?.[0] ?? null,
+        season: lastValues?.season ?? null,
+        tpo: lastValues?.tpo ?? null,
+        result,
       })
       setSaved(true)
     } catch (err) {

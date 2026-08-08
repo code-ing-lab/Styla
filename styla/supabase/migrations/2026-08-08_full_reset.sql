@@ -1,3 +1,15 @@
+-- ⚠️ 파괴적 작업(destructive): 기존 테이블(profiles/saved_items/usage_logs/subscriptions)과
+-- 그 안의 모든 데이터를 전부 삭제한 뒤, 최신 스키마(schema.sql과 동일한 내용)로 다시 만든다.
+-- Supabase 대시보드 → SQL Editor에서 "한 번만" 실행하는 용도. 실행하면 지금까지 저장된
+-- 프로필/찜한 코디/사용량 기록/구독 정보가 전부 사라지고 되돌릴 수 없으니, 정말 다 지우고
+-- 새로 시작해도 되는 상황(예: 개발 중 테스트 데이터만 있는 상태)에서만 실행할 것.
+-- 실행 후에는 이 파일 대신 schema.sql이 최신 스키마의 기준(source of truth)이 된다.
+
+drop table if exists saved_items cascade;
+drop table if exists usage_logs cascade;
+drop table if exists subscriptions cascade;
+drop table if exists profiles cascade;
+
 create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   -- 기본 정보 (모든 티어 공통, 항상 입력)

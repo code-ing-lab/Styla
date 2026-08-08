@@ -74,22 +74,58 @@ export default function MyPage() {
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {savedItems.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-3xl border border-cream-border bg-cream-card p-4 dark:border-night-border dark:bg-night-card"
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-cream-text dark:text-night-text">{item.title}</p>
-                <Heart size={16} className="text-accent-green" fill="currentColor" />
-              </div>
-              <p className="mt-2 text-xs text-cream-subtext dark:text-night-text/70">{item.description}</p>
-            </div>
+            <SavedItemCard key={item.id} item={item} />
           ))}
         </div>
       )}
 
       <h2 className="mt-10 font-serif text-lg font-semibold text-cream-text dark:text-night-text">계정 관리</h2>
       <AccountManagement user={user} />
+    </div>
+  )
+}
+
+// 저장 당시 AI가 준 진단 내용(result, jsonb)을 나중에 다시 열어볼 수 있게
+// 카드에 이미지 + 요약 + "전체 진단 보기" 토글을 둔다. 상세 UI는 2-3(필터 탭)에서 다듬을 예정.
+function SavedItemCard({ item }) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="rounded-3xl border border-cream-border bg-cream-card p-4 dark:border-night-border dark:bg-night-card">
+      {item.image_url && (
+        <img
+          src={item.image_url}
+          alt={item.title}
+          className="mb-3 aspect-[3/4] w-full rounded-2xl object-cover"
+        />
+      )}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-cream-text dark:text-night-text">{item.title}</p>
+        <Heart size={16} className="text-accent-green" fill="currentColor" />
+      </div>
+      {(item.season || item.tpo) && (
+        <p className="mt-1 text-xs text-cream-subtext dark:text-night-text/60">
+          {[item.season, item.tpo].filter(Boolean).join(' · ')}
+        </p>
+      )}
+      <p className="mt-2 text-xs text-cream-subtext dark:text-night-text/70">{item.description}</p>
+
+      {item.result && (
+        <>
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            className="mt-2 text-xs font-medium text-accent-green hover:underline"
+          >
+            {expanded ? '전체 진단 접기 ▲' : '전체 진단 보기 ▼'}
+          </button>
+          {expanded && (
+            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-xl bg-cream-bg p-3 text-[10px] leading-relaxed text-cream-text dark:bg-night-bg dark:text-night-text">
+              {JSON.stringify(item.result, null, 2)}
+            </pre>
+          )}
+        </>
+      )}
     </div>
   )
 }
