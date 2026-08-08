@@ -1,5 +1,6 @@
 // Supabase Edge Function: generate-recommendation
-// 티어(guest / member / premium)에 따라 다른 스키마의 AI 코디 추천 결과(텍스트+이미지)를 반환한다.
+// 게스트/로그인(member)은 동일한 스키마(title/keywords/paragraphs 블로그 리포트)의 결과를 반환하고,
+// 프리미엄만 별도의 심화 리포트 스키마를 쓴다. 게스트와 로그인의 차이는 이용 한도(하루/평생 1회)뿐.
 // OpenAI API 키는 반드시 Supabase Edge Function Secrets(`supabase secrets set OPENAI_API_KEY=...`)로만
 // 주입한다. 프론트엔드(src/**)에는 이 키가 절대 노출되지 않는다.
 
@@ -162,12 +163,6 @@ async function generateWithRetry(tier: Tier, input: RecommendRequestBody, maxRet
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      if (tier === 'guest') {
-        const description = (await callOpenAIChat(buildTextPrompt('guest', input), false)).trim()
-        const image = await callOpenAIImage(buildGuestImagePrompt(input, description), IMAGE_QUALITY.guest)
-        return { description, images: [image] }
-      }
-
       const raw = await callOpenAIChat(buildTextPrompt(tier, input), true)
       const parsed = JSON.parse(raw)
 
@@ -267,11 +262,7 @@ function describeInput(input: RecommendRequestBody): string {
 function buildTextPrompt(tier: Tier, input: RecommendRequestBody): string {
   const profile = describeInput(input)
 
-  if (tier === 'guest') {
-    return `다음 사용자 정보를 참고해 어울리는 코디를 자연스러운 한국어로 2~3문장만 추천해줘. JSON이나 목록 없이 문장으로만 답해줘.\n사용자 정보: ${profile}`
-  }
-
-  if (tier === 'member') {
+  if (tier === 'guest' || tier === 'member') {
     return `다음 사용자 정보를 참고해 코디 한 벌을 추천하고, 매거진/블로그 스타일의 짧은 리포트를 작성해줘.
 아래 JSON 스키마를 정확히 지켜서 JSON만 출력해줘 (설명 문장 없이 JSON만):
 {
@@ -308,19 +299,13 @@ confidence는 0~5 사이 소수, primaryPercent와 secondaryPercent의 합은 10
 사용자 정보: ${profile}`
 }
 
-function buildGuestImagePrompt(input: RecommendRequestBody, description: string): string {
-  return `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${describeInput(
-    input
-  )}. 코디 컨셉: ${description}`
-}
-
 // 1회 요청 = 이미지 1장 원칙. 프리미엄의 "다시 뽑기"는 이 함수를 다시 호출하는
 // 방식(하루 이용 한도 소진)으로 처리하므로 별도 이미지 개수 분기가 필요 없다.
 function buildImagePrompts(tier: Tier, input: RecommendRequestBody, parsed: Record<string, unknown>): string[] {
   const profile = describeInput(input)
   const keywords = Array.isArray(parsed.keywords) ? (parsed.keywords as string[]).join(', ') : ''
 
-  if (tier === 'member') {
+  if (tier === 'guest' || tier === 'member') {
     return [
       `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 스타일 키워드: ${keywords}. 컨셉: ${
         parsed.title ?? ''

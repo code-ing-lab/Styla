@@ -22,24 +22,16 @@ function SaveButton({ saved, onToggleSave }) {
   )
 }
 
+// 게스트와 로그인(member)은 출력 내용이 완전히 동일하고(이용 한도만 다름),
+// 게스트는 계정이 없어 저장 기능만 못 쓰므로 onToggleSave를 넘기지 않는다.
 export default function ResultView({ tier, result, saved = false, onToggleSave }) {
   if (!result) return null
 
-  if (tier === TIER.GUEST) return <GuestResult result={result} />
-  if (tier === TIER.MEMBER) return <MemberResult result={result} saved={saved} onToggleSave={onToggleSave} />
-  return <PremiumResult result={result} saved={saved} onToggleSave={onToggleSave} />
+  if (tier === TIER.PREMIUM) return <PremiumResult result={result} saved={saved} onToggleSave={onToggleSave} />
+  return <MemberResult result={result} saved={saved} onToggleSave={tier === TIER.GUEST ? undefined : onToggleSave} />
 }
 
-function GuestResult({ result }) {
-  return (
-    <div className="mx-auto max-w-md rounded-3xl border border-cream-border bg-cream-card p-6 shadow-sm dark:border-night-border dark:bg-night-card">
-      <ResultImage src={result.images?.[0]} alt="AI 코디 추천" className="aspect-[3/4] w-full" />
-      <p className="mt-4 text-sm leading-relaxed text-cream-text dark:text-night-text">{result.description}</p>
-    </div>
-  )
-}
-
-// 로그인 무료 티어: 이미지 1장 + 매거진/블로그 스타일의 짧은 리포트
+// 게스트/로그인 무료 티어 공통: 이미지 1장 + 매거진/블로그 스타일의 짧은 리포트
 function MemberResult({ result, saved, onToggleSave }) {
   return (
     <div className="mx-auto max-w-xl rounded-3xl border border-cream-border bg-cream-card p-6 shadow-sm dark:border-night-border dark:bg-night-card">
