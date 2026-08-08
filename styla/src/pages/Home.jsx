@@ -96,9 +96,18 @@ export default function Home() {
   const handleToggleSave = async () => {
     if (!result || saved) return
 
-    const title = tier === TIER.PREMIUM ? result.summary?.oneLiner ?? '프리미엄 코디 리포트' : result.title ?? '저장된 코디'
-    const description =
-      tier === TIER.PREMIUM ? result.summary?.keyFormulas?.join(' · ') ?? '' : result.paragraphs?.join('\n\n') ?? ''
+    // member는 result.title이 따로 없는 스키마라(기본 체형 진단 리포트), bodyType.primary로 제목을 만든다.
+    const title =
+      tier === TIER.PREMIUM
+        ? result.summary?.oneLiner ?? '프리미엄 코디 리포트'
+        : result.bodyType?.primary
+          ? `${result.bodyType.primary} 체형 진단`
+          : '저장된 코디'
+    const description = tier === TIER.PREMIUM
+      ? result.summary?.keyFormulas?.join(' · ') ?? ''
+      : [result.basicStyleGuide?.ratioAnalysis, result.basicStyleGuide?.fitRecommendation, result.styleTip]
+          .filter(Boolean)
+          .join('\n\n')
 
     // 이미지는 image_url에 이미 저장하므로, result에는 images를 빼고 저장해
     // (base64라 용량이 커서) 같은 이미지를 한 row에 두 번 넣지 않게 한다.

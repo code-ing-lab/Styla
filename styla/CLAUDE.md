@@ -24,12 +24,25 @@
 
 | 티어 | 한도 | 결과 | 이미지 |
 |---|---|---|---|
-| 게스트 | **평생 1회** (localStorage 영구 플래그, 날짜 리셋 아님) | title/keywords/paragraphs 블로그·매거진 스타일 리포트 | 1장 (low quality) |
-| 로그인(member) | 하루 3회 (DB `usage_logs`) | 게스트와 완전히 동일한 리포트 | 1장 (low quality) |
-| 프리미엄 | 하루 5회 | bodyType/styleGuide/detailGuide/summary 4섹션 심화 리포트 | 1장 (high quality) |
+| 게스트 | **평생 1회** (localStorage 영구 플래그, 날짜 리셋 아님) | 기본 체형 진단 리포트 (`bodyType.primary`/`keywords`/`basicStyleGuide`) | 1장 (low quality) |
+| 로그인(member) | 하루 3회 (DB `usage_logs`) | 게스트와 같은 기본 진단 + 데일리 코디 제안(`styleTip`) 1개 추가 | 1장 (low quality) |
+| 프리미엄 | 하루 5회 | bodyType/styleGuide/detailGuide/moodStyleGuide/summary 5섹션 심화 리포트 | 1장 (high quality) |
 
-**게스트와 로그인의 차이는 오직 이용 한도뿐**이다. 출력 스키마·이미지 화질·입력 폼 전부
-동일하게 통일했다(원래 게스트만 JSON 없이 2~3문장 텍스트만 주는 별도 경로였는데 통합함).
+**세 티어는 이용 한도뿐 아니라 출력 내용 자체도 다르다** — 각 티어의 시스템 프롬프트를
+사용자가 직접 작성해서 줬고(`generate-recommendation/index.ts`의 `GUEST_SYSTEM_PROMPT`/
+`MEMBER_SYSTEM_PROMPT`/`PREMIUM_SYSTEM_PROMPT`), OpenAI 호출도 `system` role로 이 프롬프트를
+보내고 `user` role에는 `describeInput()`으로 만든 사용자 정보만 넣는 구조로 바꿨다.
+(한때 "게스트=로그인 완전 동일 출력"으로 통일했었는데, 이 세 프롬프트를 받으면서 다시
+차등화하는 쪽으로 뒤집혔음 — 최신 방향은 이 표가 맞음.)
+
+- 게스트/로그인 스키마: `{ bodyType: { primary }, keywords: [3개], basicStyleGuide: { ratioAnalysis, fitRecommendation, tpoStylingTip }, styleTip? }` — `styleTip`은 로그인만 채워짐.
+  `bodyType.primary`는 웨이브/스트레이트/내추럴 중 하나(이미지 컨설팅에서 쓰는 체형 분류 용어).
+- 프리미엄 스키마: `{ bodyType: {primary, primaryPercent, secondary, secondaryPercent}, confidence, keywords: [4개], styleGuide: {top/bottom/dress/outer}, detailGuide: {neckline/sleeve/waistDetail/length}, moodStyleGuide: {moodKeyword, recommendedItems, colorPalette: [{name, hex}], reason}, summary: {oneLiner, keyFormulas} }`.
+  `moodStyleGuide`가 이번에 새로 추가된 섹션 — **선호 무드·스타일 입력값을 여기서 실제로 반영**한다
+  (예전엔 프로필 문자열에 나열만 되고 구체적 지시문이 없다는 게 미해결 과제였는데, 이번 프롬프트로 해결됨).
+- 세 프롬프트 다 "얼굴형/퍼스널컬러가 입력 안 됐으면 절대 추측하지 말 것", "의료적 판단 금지",
+  "부정적 표현 대신 순화된 표현 사용" 같은 공통 가드레일을 갖고 있음 — 새 프롬프트를 또 고칠 때도
+  이 가드레일은 유지할 것.
 
 ### 입력 폼 필드 (RecommendForm, 전 티어 공통 구조)
 
@@ -44,10 +57,10 @@
 
 **선호 무드·스타일**은 게스트/로그인/프리미엄 전 티어가 입력할 수 있고(프리미엄만 위치가
 다름), `generate-recommendation`의 `describeInput()`을 거쳐 모든 티어의 AI 프롬프트에
-"사용자 정보" 문자열의 일부로 포함된다 — 즉 AI가 코디를 추천할 때 이미 이 값을 참고하고
-있다. 다만 지금은 필드 값이 단순히 프롬프트 텍스트에 나열되는 수준이고, "프리미엄 리포트가
-선호 무드·스타일을 어떻게 구체적으로 반영해야 하는지"에 대한 별도 지시문은 아직 없음 —
-사용자가 줄 프롬프트 구조화 작업(아래 "다음 할 일" 참고)에서 다듬을 예정.
+"사용자 정보" 문자열의 일부로 포함된다. 프리미엄은 여기서 한 발 더 나가서 `moodStyleGuide`
+섹션(무드 키워드/추천 아이템/컬러 팔레트)으로 이 값을 구체적으로 반영하도록 시스템
+프롬프트에 명시돼 있음(위 "유저 티어 구조" 참고) — 예전에 "구체적 지시문이 없다"고
+남겨뒀던 과제는 이 프롬프트로 해결됨.
 
 DB 저장 없이 **매 요청마다 다시 입력**받는 방식이다(로그인 프로필에 1회 저장 후 재사용하는
 방식은 채택 안 함). `profiles` 테이블 스키마(`season`/`tpo`/`preferred_mood` 컬럼 포함)는
@@ -110,28 +123,28 @@ DB 저장 없이 **매 요청마다 다시 입력**받는 방식이다(로그인
 - **프리미엄 "사진 업로드"가 실제로는 동작하지 않음.** `RecommendForm`에서 `values.photo`는 `File` 객체
   그대로 state에 들어가는데, `ai.js`의 `requestRecommendation`이 그냥 JSON 직렬화해서 보내기 때문에
   `File` 객체는 빈 객체(`{}`)로 사라짐 — 서버에 사진이 전혀 전달되지 않음. `generate-recommendation`의
-  `photoUrl` 필드도 정의만 돼 있고 프롬프트 어디에서도 안 쓰임. Supabase Storage 업로드 + 이미지
-  분석 연결이 필요한 별도 작업. 프롬프트 작업 들어갈 때 사용자에게 짚고 넘어갈 것.
+  `photoUrl` 필드도 정의만 돼 있고 프롬프트 어디에서도 안 쓰임. **`PREMIUM_SYSTEM_PROMPT`에는 "사진이
+  첨부된 경우" 처리 지침이 명시돼 있는데, 사진이 애초에 서버까지 못 가니 이 분기는 지금 절대 안 탐** —
+  사진 관련 지침은 사실상 "사진 없는 경우" 분기만 항상 실행되는 셈. Supabase Storage 업로드 + 이미지
+  분석 연결이 필요한 별도 작업. 사용자에게 조만간 짚고 넘어갈 것.
 
 ## 완료된 것
 
 프로젝트 초기화, 디자인 시스템, DB 스키마, 유저 권한 구조, 게스트/로그인/프리미엄 전체
 플로우, 라우팅, 전환 유도 CTA, OAuth+이메일 인증, 비밀번호 재설정/변경, 회원탈퇴,
 usage_logs 보안 강화, 이미지 1회=1장 개편, 입력 폼 간소화(상세조건 더보기 아코디언 +
-프리미엄 상세조건 분리), 게스트/로그인 출력 통일, `saved_items`에 tier/season/tpo/AI
-원본 결과(jsonb) 저장 + 마이페이지 이미지·전체 진단 보기 — 전부 완료 및 브랜치에 푸시됨.
-DB는 사용자가 `2026-08-08_full_reset.sql`로 리셋 완료, Edge Function도 재배포 완료 확인함.
+프리미엄 상세조건 분리), `saved_items`에 tier/season/tpo/AI 원본 결과(jsonb) 저장 +
+마이페이지 이미지·전체 진단 보기, **3티어 AI 시스템 프롬프트 도입**(게스트=기본 진단,
+로그인=기본 진단+데일리 코디 제안, 프리미엄=사진/퍼스널컬러/무드까지 반영한 심화 리포트 —
+사용자가 직접 작성한 프롬프트 3종을 그대로 반영, `ResultView.jsx`도 새 스키마에 맞춰 재작성)
+— 전부 완료 및 브랜치에 푸시됨. DB는 사용자가 `2026-08-08_full_reset.sql`로 리셋 완료.
 
 ## 다음 할 일 (Styla+ 개선 우선순위)
 
-- [ ] 🔴 **AI 프롬프트 재작성** — 사용자가 "AI가 분석해야 할 내용을 구획한 프롬프트"를 정리해서
-  줄 예정. 그걸 받으면 `supabase/functions/generate-recommendation/index.ts`의
-  `buildTextPrompt`/`buildImagePrompts`(그리고 필요하면 `describeInput`)를 다시 짤 것.
-  이때 짚고 넘어가야 할 것:
-  - 선호 무드·스타일이 지금은 프로필 문자열에 나열만 되는 수준 — 프리미엄 스타일 가이드가
-    이 값을 얼마나 적극적으로 반영해야 하는지 구체적 지시문 필요.
-  - 프리미엄 사진 업로드가 실제로 AI에 전달되지 않는 문제(위 "알려진 미완성 기능" 참고) —
-    프롬프트 작업과 별개로 Storage 업로드 연동이 필요한지 사용자에게 확인.
+- [ ] 🔴 **Edge Function 재배포** — 3티어 시스템 프롬프트로 갈아엎은 `generate-recommendation`
+  코드가 아직 배포 안 됨. `npm run functions:deploy`로 반영해야 실제 앱에서 새 프롬프트가 동작함.
+  실제로 각 티어별로 한 번씩 추천 받아보고 JSON이 스키마대로 잘 나오는지, 부적절한 표현이
+  섞이진 않는지 눈으로 확인할 것(프롬프트가 지시문이 많아서 모델이 다 못 지킬 수도 있음).
 - [ ] 🟡 결과 리빌 애니메이션(fade-in/카드 flip) + 로딩 스켈레톤 (새 라이브러리 추가 없이 Tailwind transition으로)
 - [ ] 🟡 마이페이지에 계절/TPO 필터 탭 추가 — DB 컬럼과 저장 로직은 이미 완료, 남은 건 `MyPage.jsx`의 필터 탭 UI뿐
 - [ ] 🔵 추후 검토(보류): LLM 모델 경량화, 제휴 마케팅 링크, `/blog` SEO 페이지, 광고 시청 보상형 충전, 게이미피케이션+퀴즈 개편
@@ -145,5 +158,5 @@ DB는 사용자가 `2026-08-08_full_reset.sql`로 리셋 완료, Edge Function�
 - `OPENAI_API_KEY` secret 등록 여부 — 아직 미확인. `supabase secrets set OPENAI_API_KEY=sk-...`로
   등록돼 있어야 실제 AI 호출이 됨.
 - 실제 OpenAI 이미지 화질(low) 눈으로 확인 후 만족스러운지 — 아직 미확인.
-- **게스트/로그인 출력 통일 반영을 위한 Edge Function 재배포** — `generate-recommendation` 코드가
-  바뀌었으니 `npm run functions:deploy` 다시 실행 필요 (직전 배포 이후에 바뀐 부분).
+- **3티어 시스템 프롬프트 반영을 위한 Edge Function 재배포** — 위 "다음 할 일" 맨 위 항목과 동일,
+  아직 안 됐을 가능성 높음.

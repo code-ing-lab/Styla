@@ -31,16 +31,20 @@ export default function ResultView({ tier, result, saved = false, onToggleSave }
   return <MemberResult result={result} saved={saved} onToggleSave={tier === TIER.GUEST ? undefined : onToggleSave} />
 }
 
-// 게스트/로그인 무료 티어 공통: 이미지 1장 + 매거진/블로그 스타일의 짧은 리포트
+// 게스트/로그인 무료 티어 공통: 이미지 1장 + 기본 체형 진단 리포트.
+// 로그인은 여기에 styleTip(데일리 코디 제안)이 하나 더 붙는다(게스트는 result.styleTip이 없음).
 function MemberResult({ result, saved, onToggleSave }) {
+  const { basicStyleGuide } = result
   return (
     <div className="mx-auto max-w-xl rounded-3xl border border-cream-border bg-cream-card p-6 shadow-sm dark:border-night-border dark:bg-night-card">
       <div className="relative">
-        <ResultImage src={result.images?.[0]} alt={result.title} className="aspect-[3/4] w-full" />
+        <ResultImage src={result.images?.[0]} alt={result.bodyType?.primary ?? 'AI 코디 추천'} className="aspect-[3/4] w-full" />
         <SaveButton saved={saved} onToggleSave={onToggleSave} />
       </div>
 
-      <h2 className="mt-4 font-serif text-xl font-semibold text-cream-text dark:text-night-text">{result.title}</h2>
+      <p className="mt-4 font-serif text-xl font-semibold text-cream-text dark:text-night-text">
+        {result.bodyType?.primary} 체형에 가까워 보여요
+      </p>
 
       <div className="mt-2 flex flex-wrap gap-1.5">
         {result.keywords?.map((kw) => (
@@ -50,13 +54,18 @@ function MemberResult({ result, saved, onToggleSave }) {
         ))}
       </div>
 
-      <div className="mt-4 space-y-3">
-        {result.paragraphs?.map((paragraph, i) => (
-          <p key={i} className="text-sm leading-relaxed text-cream-text dark:text-night-text">
-            {paragraph}
-          </p>
-        ))}
+      <div className="mt-4 space-y-3 text-sm leading-relaxed text-cream-text dark:text-night-text">
+        {basicStyleGuide?.ratioAnalysis && <p>{basicStyleGuide.ratioAnalysis}</p>}
+        {basicStyleGuide?.fitRecommendation && <p>{basicStyleGuide.fitRecommendation}</p>}
+        {basicStyleGuide?.tpoStylingTip && <p>{basicStyleGuide.tpoStylingTip}</p>}
       </div>
+
+      {result.styleTip && (
+        <div className="mt-4 rounded-2xl border border-accent-green/30 bg-accent-green/5 p-3">
+          <p className="text-xs font-semibold text-accent-green">오늘의 코디 제안</p>
+          <p className="mt-1 text-sm text-cream-text dark:text-night-text">{result.styleTip}</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -112,8 +121,36 @@ function PremiumResult({ result, saved, onToggleSave }) {
         </div>
       </div>
 
+      <div className="mt-6 rounded-3xl border border-cream-border bg-cream-card p-6 dark:border-night-border dark:bg-night-card">
+        <SectionTitle index={4} title="무드 스타일 가이드" />
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {result.moodStyleGuide?.moodKeyword && (
+            <span className="rounded-full bg-accent-gold/10 px-3 py-1 text-xs font-semibold text-accent-gold">
+              {result.moodStyleGuide.moodKeyword}
+            </span>
+          )}
+          {result.moodStyleGuide?.colorPalette?.map((color) => (
+            <div key={color.hex ?? color.name} className="flex items-center gap-1.5">
+              <span
+                className="h-5 w-5 rounded-full border border-cream-border dark:border-night-border"
+                style={{ backgroundColor: color.hex }}
+              />
+              <span className="text-xs text-cream-subtext dark:text-night-text/70">{color.name}</span>
+            </div>
+          ))}
+        </div>
+        {result.moodStyleGuide?.recommendedItems?.length > 0 && (
+          <p className="mt-3 text-xs font-medium text-accent-green">
+            추천 아이템: {result.moodStyleGuide.recommendedItems.join(', ')}
+          </p>
+        )}
+        {result.moodStyleGuide?.reason && (
+          <p className="mt-2 text-sm text-cream-subtext dark:text-night-text/70">{result.moodStyleGuide.reason}</p>
+        )}
+      </div>
+
       <div className="mt-6 rounded-3xl border border-accent-green/30 bg-accent-green/5 p-6">
-        <SectionTitle index={4} title="최종 요약" />
+        <SectionTitle index={5} title="최종 요약" />
         <p className="mt-3 font-serif text-lg font-medium text-cream-text dark:text-night-text">
           {result.summary?.oneLiner}
         </p>
