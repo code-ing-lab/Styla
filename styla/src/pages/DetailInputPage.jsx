@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useApp } from "../context/AppContext.jsx";
 import { getTierById } from "../lib/tiers.js";
 import {
+  SEASON_OPTIONS,
+  TPO_OPTIONS,
   PERSONAL_COLOR_OPTIONS,
   FACE_SHAPE_OPTIONS,
   BODY_COMPLEX_OPTIONS,
@@ -37,16 +39,23 @@ function Field({ label, children }) {
 
 export default function DetailInputPage() {
   const navigate = useNavigate();
-  const { report, selectedTier, orderEmail, setDetailInfo } = useApp();
+  const { report, surveyAnswers, setSurveyAnswers, selectedTier, orderEmail, setDetailInfo } =
+    useApp();
   const tier = getTierById(selectedTier);
 
   const [values, setValues] = useState(initialState);
+  const [season, setSeason] = useState("");
+  const [tpo, setTpo] = useState("");
 
   useEffect(() => {
     if (!report) navigate("/", { replace: true });
     else if (!tier) navigate("/result", { replace: true });
     else if (!orderEmail) navigate("/checkout", { replace: true });
-  }, [report, tier, orderEmail, navigate]);
+    else if (surveyAnswers) {
+      setSeason(surveyAnswers.currentSeason);
+      setTpo(surveyAnswers.tpo);
+    }
+  }, [report, tier, orderEmail, surveyAnswers, navigate]);
 
   if (!report || !tier || !orderEmail) return null;
 
@@ -70,6 +79,7 @@ export default function DetailInputPage() {
     // TODO: 여기서 수집한 상세 정보(치수·퍼스널컬러·사진 등)를 실제 AI API 호출 시
     // generateReport(surveyAnswers, detailInfo)처럼 함께 전달하도록 교체
     setDetailInfo(values);
+    setSurveyAnswers((prev) => ({ ...prev, currentSeason: season, tpo }));
     navigate(`/report/${tier.id}`);
   };
 
@@ -95,6 +105,28 @@ export default function DetailInputPage() {
         className="rounded-3xl border border-border-subtle bg-surface-card p-6 sm:p-8"
       >
         <div className="grid grid-cols-2 gap-4">
+          <Field label="계절 · 날씨">
+            <select
+              className={inputClass}
+              value={season}
+              onChange={(e) => setSeason(e.target.value)}
+            >
+              {SEASON_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="TPO">
+            <select className={inputClass} value={tpo} onChange={(e) => setTpo(e.target.value)}>
+              {TPO_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="나이">
             <input
               type="number"

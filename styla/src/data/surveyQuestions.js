@@ -54,6 +54,8 @@ export const WEIGHT_OPTIONS_BY_HEIGHT = {
   ],
 };
 
+export const SEASON_OPTIONS = ["봄", "여름", "가을", "겨울"];
+
 export const TPO_OPTIONS = [
   { value: "오피스룩", label: "오피스룩" },
   { value: "캐주얼룩", label: "캐주얼룩" },
