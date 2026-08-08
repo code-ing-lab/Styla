@@ -124,17 +124,14 @@
 
 ## 아직 사용자가 안 했을 수도 있는 것 (재확인 필요)
 
-- `supabase/migrations/2026-08-08_full_reset.sql` 실행 여부 — ⚠️ **파괴적 작업**. 기존
-  profiles/saved_items/usage_logs/subscriptions 테이블과 데이터를 전부 drop한 뒤 최신 스키마(2-1
-  필드 개편 + saved_items의 tier/season/tpo/result 확장 반영)로 재생성함. Supabase 대시보드 →
-  SQL Editor에 파일 내용을 그대로 붙여넣어 실행하면 됨. 이후로는 `schema.sql`이 최신 스키마 기준.
-  (예전에 있던 ALTER 방식 증분 마이그레이션 `2026-08-08_profiles_2-1_sync.sql`은 이 파일로 대체되어
-  삭제했음 — 더 이상 필요 없음.)
-- Edge Function 실제 배포 여부 (`npm run functions:deploy`)
-- `OPENAI_API_KEY` secret 등록 여부
-- `usage_logs` RLS 정책 마이그레이션 SQL 실행 여부:
-  ```sql
-  drop policy "usage_logs: 본인만" on usage_logs;
-  create policy "usage_logs: 본인만 조회" on usage_logs for select using (auth.uid() = user_id);
-  ```
-- 실제 OpenAI 이미지 화질(low) 눈으로 확인 후 만족스러운지
+- ~~`supabase/migrations/2026-08-08_full_reset.sql` 실행~~ — **완료 확인함** (사용자가 SQL Editor에서
+  직접 실행). DB가 최신 스키마(2-1 필드 개편 + saved_items의 tier/season/tpo/result 확장)로 재생성됨.
+  이 리셋으로 `usage_logs` RLS도 처음부터 올바른 형태(select만 허용)로 생성돼서, 예전에 따로 안내했던
+  "usage_logs RLS 정책 마이그레이션"은 더 이상 필요 없음(이미 반영됨).
+- ~~Edge Function 배포~~ — **완료 확인함** (`npm run functions:deploy`로 `generate-recommendation`,
+  `delete-account` 둘 다 배포 완료). 단, 브랜치가 꼬여서 처음엔 예전 브랜치(`claude/prompt-generation-5849zj`)
+  에 있었던 걸 `claude/claude-md-reading-nn8tx0`로 전환 후 배포함 — 다음에도 새 세션에서 작업한 뒤
+  배포할 땐 먼저 `git fetch`/`checkout`/`pull`로 브랜치를 맞추고 배포할 것.
+- `OPENAI_API_KEY` secret 등록 여부 — 아직 미확인. `supabase secrets set OPENAI_API_KEY=sk-...`로
+  등록돼 있어야 실제 AI 호출이 됨.
+- 실제 OpenAI 이미지 화질(low) 눈으로 확인 후 만족스러운지 — 아직 미확인.
