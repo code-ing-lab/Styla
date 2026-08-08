@@ -8,6 +8,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { DAILY_LIMIT, IMAGE_QUALITY, OPENAI_IMAGE_MODEL, OPENAI_TEXT_MODEL, type Tier } from '../_shared/config.ts'
+import { getCurrentTrendKeywords } from '../_shared/trendKeywords.ts'
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
@@ -176,8 +177,16 @@ async function generateWithRetry(tier: Tier, input: RecommendRequestBody, maxRet
         return { ...parsed, images: [] }
       }
 
-      const imagePrompts = buildImagePrompts(tier, input, parsed)
-      const images = await Promise.all(imagePrompts.map((prompt) => callOpenAIImage(prompt, IMAGE_QUALITY[tier])))
+      // "1회 요청 = 이미지 1장" 원칙이라 이미지는 항상 1장만 생성한다.
+      const imagePrompt = buildImagePrompt({
+        gender: input.gender,
+        season: input.season,
+        tpo: input.tpo,
+        mood: input.preferredMood,
+        personalColor: input.personalColor,
+        tier,
+      })
+      const images = [await callOpenAIImage(imagePrompt, IMAGE_QUALITY[tier])]
 
       return { ...parsed, images }
     } catch (error) {
@@ -444,31 +453,48 @@ const SYSTEM_PROMPT: Record<Tier, string> = {
   premium: PREMIUM_SYSTEM_PROMPT,
 }
 
-// 1회 요청 = 이미지 1장 원칙. 프리미엄의 "다시 뽑기"는 이 함수를 다시 호출하는
-// 방식(하루 이용 한도 소진)으로 처리하므로 별도 이미지 개수 분기가 필요 없다.
-// (게스트는 generateWithRetry에서 이미지 생성 자체를 건너뛰므로 이 함수까지 안 옴 — member/premium만 호출됨)
-function buildImagePrompts(tier: Tier, input: RecommendRequestBody, parsed: Record<string, unknown>): string[] {
-  const profile = describeInput(input)
-  const keywords = Array.isArray(parsed.keywords) ? (parsed.keywords as string[]).join(', ') : ''
-  const bodyType = (parsed.bodyType as { primary?: string } | undefined)?.primary ?? ''
+interface ImagePromptInput {
+  gender: string
+  season?: string
+  weather?: string
+  tpo?: string
+  mood?: string
+  personalColor?: string
+  tier: Tier
+}
 
-  if (tier === 'member') {
-    const styleTip = typeof parsed.styleTip === 'string' ? parsed.styleTip : ''
-    return [
-      `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 체형 타입: ${bodyType}. 스타일 키워드: ${keywords}${
-        styleTip ? `. 코디 제안: ${styleTip}` : ''
-      }`,
-    ]
-  }
+// 사용자가 직접 작성한 이미지 프롬프트. 예전엔 "패션 화보 스타일의 전신 코디 이미지..." 한 줄짜리라
+// 결과물이 인위적이고 스톡사진 같았는데, 촬영 기법(필름 그레인/자연광/부자연스러운 포즈 지양)과
+// 시즌 트렌드 키워드(trendKeywords.ts)를 넣어서 더 자연스럽고 트렌디하게 나오도록 재작성함.
+// AI가 생성한 텍스트 리포트(keywords/bodyType 등)에 기대지 않고, 유저 입력값만으로 독립적으로 구성.
+function buildImagePrompt({ gender, season, weather, tpo, mood, personalColor, tier }: ImagePromptInput): string {
+  // RecommendForm의 성별 값은 'male'/'female'/'unspecified'(영문)라 그대로 판별한다.
+  const genderTerm = gender === 'male' ? 'male' : 'female'
 
-  // premium
-  const moodStyleGuide = parsed.moodStyleGuide as
-    | { moodKeyword?: string; colorPalette?: { name?: string }[] }
-    | undefined
-  const moodKeyword = moodStyleGuide?.moodKeyword ?? ''
-  const colorPalette = moodStyleGuide?.colorPalette?.map((c) => c.name).filter(Boolean).join(', ') ?? ''
+  // 자연스러움을 위한 촬영 기법 키워드 — "studio" 대신 다큐멘터리/스트리트 스냅 느낌으로
+  const photographyStyle =
+    'Candid street-style snapshot, shot on 35mm film with natural grain, ' +
+    'shallow depth of field, soft natural daylight, slight motion blur suggesting ' +
+    'the subject is mid-stride or caught in a natural, unposed moment.'
 
-  return [
-    `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 스타일 키워드: ${keywords}. 체형 타입: ${bodyType}. 무드: ${moodKeyword}. 컬러 팔레트: ${colorPalette}`,
-  ]
+  const base = `A ${genderTerm} model captured in a candid street-style photo, ` +
+    `wearing a complete coordinated outfit suitable for ${tpo || 'daily'} occasions ` +
+    `during ${season || 'current season'} weather (${weather || 'mild'}). ${photographyStyle}`
+
+  const moodPart = mood ? ` The overall styling mood should feel ${mood}.` : ''
+
+  const colorPart = tier === 'premium' && personalColor
+    ? ` Color palette of the outfit should suit a "${personalColor}" personal color tone.`
+    : ''
+
+  // 시즌 트렌드는 별도 설정 파일(trendKeywords)에서 불러와 결합
+  const trendPart = ` Subtly incorporate current fashion trend elements: ${getCurrentTrendKeywords()}.`
+
+  const realismConstraints =
+    ' Realistic fabric texture with natural wrinkles and drape, imperfect but ' +
+    'flattering natural pose, genuine facial expression, avoid symmetrical ' +
+    'studio-catalog poses. No visible brand logos, no text or watermark overlays, ' +
+    'face softly out of sharp focus so the outfit remains the visual focus.'
+
+  return base + moodPart + colorPart + trendPart + realismConstraints
 }
