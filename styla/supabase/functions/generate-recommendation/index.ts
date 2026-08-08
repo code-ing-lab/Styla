@@ -19,21 +19,24 @@ const CORS_HEADERS = {
 }
 
 interface RecommendRequestBody {
-  // 공통 입력 (모든 티어) — 2-1 개편으로 무료/게스트는 이 4개만 받는다.
+  // 기본 정보 (모든 티어 공통, 항상 입력)
   gender: string
-  bodyShape?: string
-  personalColor?: string
-  tpo?: string
-  // 프리미엄 진입 시 2단계(정밀 정보)에서만 채워지는 입력
-  height?: number
-  weight?: number
   age?: number
+  height: number
+  weight: number
+  // "상세조건 더보기"로 접어둔 선택 입력 (모든 티어 공통)
   bust?: number
   waist?: number
   hip?: number
   legLength?: number
+  season?: string
+  tpo?: string
+  // 무료/로그인은 상세조건 더보기 안에서, 프리미엄은 "프리미엄 상세조건" 안에서 받는다
+  preferredMood?: string
+  // 프리미엄 상세조건 (프리미엄 전용)
   faceShape?: string
-  bodyComplex?: string[]
+  personalColor?: string
+  bodyComplex?: string
   photoUrl?: string
 }
 
@@ -244,18 +247,19 @@ async function callOpenAIImage(prompt: string, quality: 'low' | 'medium' | 'high
 function describeInput(input: RecommendRequestBody): string {
   const parts = [
     `성별 ${input.gender}`,
-    input.bodyShape && `체형 ${input.bodyShape}`,
-    input.height && `키 ${input.height}cm`,
-    input.weight && `몸무게 ${input.weight}kg`,
+    `키 ${input.height}cm`,
+    `몸무게 ${input.weight}kg`,
     input.age && `나이 ${input.age}세`,
     input.bust && `가슴둘레 ${input.bust}cm`,
     input.waist && `허리둘레 ${input.waist}cm`,
     input.hip && `엉덩이둘레 ${input.hip}cm`,
     input.legLength && `다리길이 ${input.legLength}cm`,
+    input.season && `계절/날씨 ${input.season}`,
     input.tpo && `TPO ${input.tpo}`,
+    input.preferredMood && `선호 무드/스타일 ${input.preferredMood}`,
     input.personalColor && `퍼스널컬러 ${input.personalColor}`,
     input.faceShape && `얼굴형 ${input.faceShape}`,
-    input.bodyComplex?.length && `체형 고민 ${input.bodyComplex.join(', ')}`,
+    input.bodyComplex && `체형 콤플렉스 ${input.bodyComplex}`,
   ].filter(Boolean)
   return parts.join(', ')
 }

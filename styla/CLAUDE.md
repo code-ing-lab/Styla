@@ -24,9 +24,9 @@
 
 | 티어 | 한도 | 입력 | 결과 | 이미지 |
 |---|---|---|---|---|
-| 게스트 | **평생 1회** (localStorage 영구 플래그, 날짜 리셋 아님) | 성별/키/몸무게 필수 + 선택 항목 | 짧은 텍스트 2~3문장 | 1장 (low quality) |
+| 게스트 | **평생 1회** (localStorage 영구 플래그, 날짜 리셋 아님) | 성별/나이/키/몸무게(성별·키·몸무게 필수) + "상세조건 더보기": 가슴·허리·엉덩이둘레/다리길이/계절·날씨/TPO/선호 무드·스타일 | 짧은 텍스트 2~3문장 | 1장 (low quality) |
 | 로그인(member) | 하루 3회 (DB `usage_logs`) | 게스트와 동일 | title/keywords/paragraphs 블로그·매거진 스타일 리포트 | 1장 (low quality) |
-| 프리미엄 | 하루 5회 | + 퍼스널컬러/얼굴형/체형콤플렉스/사진(선택) | bodyType/styleGuide/detailGuide/summary 4섹션 심화 리포트 | 1장 (high quality) |
+| 프리미엄 | 하루 5회 | 위 상세조건 더보기(단, 선호 무드·스타일은 제외) + "프리미엄 상세조건": 얼굴형/퍼스널컬러/선호 무드·스타일/체형콤플렉스(직접입력)/사진(선택) | bodyType/styleGuide/detailGuide/summary 4섹션 심화 리포트 | 1장 (high quality) |
 
 - **"1회 요청 = 이미지 1장"** 원칙 (전 티어 공통, 최근 개편). 예전엔 member 3장/premium 6장이었으나 원가 문제로 축소.
 - 프리미엄 "다시 뽑기"는 별도 크레딧 시스템 없이, 기존 "다시 추천받기" 버튼이 하루 한도 안에서 재사용되는 것으로 처리(추가 구현 없음).
@@ -87,13 +87,20 @@
 ## 진행 중 / 다음 할 일 (Styla+ 개선 우선순위, 사용자가 준 순서)
 
 - [x] 🔴 1-1: 이미지 1회=1장 전환, 화질 조정, 로그인 티어 블로그 리포트화 — **완료**
-- [x] 🟡 2-1: 초기 입력 폼 간소화 — **완료**. `RecommendForm`을 2단계로 분리:
-  1단계(전 티어 공통) = 성별+체형카드(표준/마른/통통/근육형, 필드명 `bodyShape`)+퍼스널컬러+TPO만.
-  프리미엄만 1단계 통과 후 2단계(정밀 치수: 키/몸무게 필수, 나이·가슴/허리/엉덩이둘레·다리길이 선택
-  +얼굴형+체형콤플렉스+사진)로 진행. **DB 저장 없이 매 요청마다 재입력**하는 방식으로 구현했음
-  (프로필에 1회 저장 후 재사용하는 방식은 채택 안 함 — 필요하면 나중에 마이그레이션 추가해서 전환 가능).
-  `계절` 필드는 2-1 스펙에 없어서 완전히 제거함(폼+Edge Function 양쪽에서 삭제).
-  `generate-recommendation`의 `height`/`weight`는 게스트/멤버가 안 보낼 수 있어 옵셔널로 변경.
+- [x] 🟡 2-1: 초기 입력 폼 간소화 — **완료** (최종 확정 스펙 기준, 중간에 한 번 갈아엎었음 — 이전에
+  시도했던 "체형카드+2단계 페이지 분리" 버전은 폐기하고 아래 방식으로 다시 구현했음).
+  `RecommendForm`은 **단일 폼 + 아코디언**(2단계 페이지 전환 없음) 구조:
+  - 기본 정보(항상 노출, 전 티어 공통): 성별·나이·키·몸무게 (성별/키/몸무게 필수)
+  - "상세조건 더보기" 토글(전 티어 공통, 접힘 기본값): 가슴/허리/엉덩이둘레·다리길이·계절/날씨·TPO
+    + 선호 무드·스타일(**게스트/로그인만** 이 안에 노출, 프리미엄은 아래 섹션으로 이동)
+  - "프리미엄 상세조건"(프리미엄 전용, 상시 노출·접히지 않음): 얼굴형·퍼스널컬러·선호 무드·스타일·
+    체형 콤플렉스(멀티선택 칩 없애고 **직접입력 텍스트**로 단순화)·사진 업로드
+  - **DB 저장 없이 매 요청마다 재입력**하는 방식(프로필 1회 저장 후 재사용 방식은 채택 안 함).
+  `generate-recommendation` Edge Function의 `RecommendRequestBody`/`describeInput()`도 위 필드에 맞춰
+  재정리했고(`season`/`preferredMood` 복원, `bodyComplex`는 string), 이미 있었지만 코드에서 안 쓰이던
+  `profiles` 테이블 스키마도 이 필드 구성에 맞춰 `season`/`tpo`/`preferred_mood` 컬럼 추가 + `body_complex`를
+  `text[]`→`text`로 변경함 (단, `profiles` 테이블은 여전히 프론트에서 실제로 읽거나 쓰지 않음 — 스키마만
+  맞춰둔 상태). CSS/전환 효과(아코디언 애니메이션 등)는 2-2에서 다룰 예정이라 미적용.
 - [ ] 🟡 2-2: 결과 리빌 애니메이션(fade-in/카드 flip) + 로딩 스켈레톤 (새 라이브러리 추가 없이 Tailwind transition으로)
 - [ ] 🟡 2-3: 저장한 코디에 계절/TPO 메타데이터 저장 + 마이페이지 필터 탭 — **`saved_items` 테이블에 `season`/`tpo` 컬럼 추가하는 마이그레이션 SQL 필요** (사용자가 Supabase SQL Editor에서 직접 실행해야 함)
 - [ ] 🔵 추후 검토(보류): LLM 모델 경량화, 제휴 마케팅 링크, `/blog` SEO 페이지, 광고 시청 보상형 충전, 게이미피케이션+퀴즈 개편
@@ -105,6 +112,15 @@
 
 ## 아직 사용자가 안 했을 수도 있는 것 (재확인 필요)
 
+- `profiles` 테이블을 이미 Supabase에 만들어뒀다면(예전 `schema.sql`로 생성한 경우), 2-1에서 바뀐
+  컬럼을 맞추기 위해 아래 마이그레이션 SQL을 Supabase SQL Editor에서 직접 실행해야 함(테이블을 아직
+  안 만들었다면 최신 `schema.sql`로 새로 만들면 되므로 생략 가능):
+  ```sql
+  alter table profiles add column if not exists season text;
+  alter table profiles add column if not exists tpo text;
+  alter table profiles add column if not exists preferred_mood text;
+  alter table profiles alter column body_complex type text using array_to_string(body_complex, ', ');
+  ```
 - Edge Function 실제 배포 여부 (`npm run functions:deploy`)
 - `OPENAI_API_KEY` secret 등록 여부
 - `usage_logs` RLS 정책 마이그레이션 SQL 실행 여부:

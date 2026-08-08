@@ -1,16 +1,22 @@
 create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  -- 기본 정보 (모든 티어 공통, 항상 입력)
   gender text,
   age integer,
   height numeric,
   weight numeric,
+  -- "상세조건 더보기"로 접어둔 선택 입력 (모든 티어 공통)
   bust numeric,
   waist numeric,
   hip numeric,
   leg_length numeric,
+  season text,
+  tpo text,
+  preferred_mood text,
+  -- 프리미엄 상세조건 (프리미엄 전용)
   personal_color text,
   face_shape text,
-  body_complex text[],
+  body_complex text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
