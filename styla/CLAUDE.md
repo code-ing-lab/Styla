@@ -147,25 +147,38 @@ usage_logs 보안 강화, 이미지 1회=1장 개편, 입력 폼 간소화(상�
 생성 제거(로그인 전환 유인 실험), **이미지 프롬프트 재작성**(캔디드 스냅 스타일 + 트렌드는
 파일 대신 모델이 연도/계절 보고 알아서 판단하도록 위임), **텍스트+이미지 생성 병렬화**(이미지
 프롬프트가 텍스트 결과에 더 이상 안 기대므로 `Promise.all`로 동시 호출 — 응답 속도 개선),
-**로딩 화면**(`LoadingScreen.jsx`, 문구 순환 애니메이션), **저장 취소 기능**(하트 다시 누르면
-`saved_items` 행 삭제, `savedItemId` state로 추적), **마이페이지 저장 카드 정리**(그리드에
-`items-start` 줘서 카드 하나 펼쳐도 옆 카드 안 늘어나게, 상단 글밥 줄임, JSON 원문 대신
-`SavedResultDetail`로 티어별 보기 좋게 렌더링), **개발자 전용 미리보기 패널**(`DevPreviewPanel.jsx`
-— 우측 하단 🔧 버튼, 실제 API/한도 없이 목업 데이터로 3티어 결과 화면 확인 가능, 제거 방법은
-그 파일 상단 주석 참고) — 전부 완료 및 브랜치에 푸시됨. DB는 `2026-08-08_full_reset.sql`로
-리셋 완료, `OPENAI_API_KEY` secret 등록 완료. Netlify Production branch를
-`claude/claude-md-reading-nn8tx0`로 맞춰서 프론트엔드도 정상 배포되는 상태 확인함.
+**로딩 화면**(`LoadingScreen.jsx`, 문구 순환 애니메이션), **저장 취소 기능**(Home.jsx 결과 화면
++ MyPage.jsx 저장 목록 양쪽 다 — 하트 다시 누르면 `saved_items` 행 삭제), **마이페이지 저장 카드
+정리**(그리드에 `items-start` 줘서 카드 하나 펼쳐도 옆 카드 안 늘어나게, 상단 글밥 줄임, JSON
+원문 대신 `SavedResultDetail`로 티어별 보기 좋게 렌더링), **입력 정보 불러오기**(`RecommendForm`이
+직전 제출값을 `localStorage`에 저장해뒀다가 다음에 열 때 자동으로 채워줌, 사진은 직렬화가 안 돼서
+제외, "초기화" 링크로 지울 수 있음 — DB 저장은 아니고 이 브라우저에만 남는 가벼운 방식),
+**개발자 전용 도구 확장**(`DevPreviewPanel.jsx` 우측 하단 🔧 버튼):
+1) "결과 화면 미리보기" — 실제 API 호출/한도 없이 목업 데이터로 3티어 결과 화면 확인
+2) "조건 입력해서 실제 생성" — 폼으로 이동해 실제로 값을 입력하고 진짜 OpenAI를 호출(사진 포함)
+   해볼 수 있음. 이용 한도 면제는 Edge Function의 `DEV_BYPASS_EMAIL` secret과 일치하는 계정으로
+   로그인했을 때만 적용됨(서버가 이메일을 직접 확인하므로 다른 계정이 흉내낼 수 없음) — 설정
+   안 하면 이 버튼을 눌러도 그냥 일반 사용자와 동일하게 한도가 걸림.
+제거 방법은 `DevPreviewPanel.jsx` 상단 주석 참고. — 전부 완료 및 브랜치에 푸시됨. DB는
+`2026-08-08_full_reset.sql`로 리셋 완료, `OPENAI_API_KEY` secret 등록 완료. Netlify Production
+branch를 `claude/claude-md-reading-nn8tx0`로 맞춰서 프론트엔드도 정상 배포되는 상태 확인함.
 
 ## 다음 할 일 (Styla+ 개선 우선순위)
 
-- [ ] 🔴 **Edge Function 재배포** — 텍스트/이미지 생성 병렬화가 아직 배포 안 됐음(이전 배포는
-  병렬화 전 코드). `npm run functions:deploy`로 반영 후 실제로 응답이 빨라졌는지 체감 확인할 것.
+- [ ] 🔴 **Edge Function 재배포** — 텍스트/이미지 생성 병렬화 + `DEV_BYPASS_EMAIL` 로직이 아직
+  배포 안 됐음. `npm run functions:deploy`로 반영할 것.
   - 디버깅 팁: 화면에 `bodyType.primary`나 리포트 문장이 비어 보이면, 십중팔구 "로컬은 최신인데
     Edge Function 배포가 안 됐거나 예전 버전"인 경우다 — `git pull`로 로컬이 최신인지 먼저
     확인하고, 확실히 하려면 그냥 한 번 더 `functions:deploy`.
-- [ ] 🟡 **개발자 미리보기 패널 제거 확인** — 실서비스 오픈 전에 `DevPreviewPanel.jsx`/
-  `devMockResults.js`와 `Home.jsx`에서 이 둘을 참조하는 부분(`devTier` state, `DevPreviewPanel`
-  렌더링, `handleDevPreview`/`handleExitDevPreview`)을 지울 것 — 실제 유저에게는 안 보여야 함.
+- [ ] 🟡 **`DEV_BYPASS_EMAIL` secret 등록** (선택) — 개발자 계정 이메일로
+  `supabase secrets set DEV_BYPASS_EMAIL=본인이메일` 실행하면, 그 계정으로 로그인했을 때
+  개발자 패널의 "조건 입력해서 실제 생성"이 이용 한도 없이 동작함. 등록 안 해도 앱은 정상
+  동작하고, 그 기능만 일반 사용자처럼 한도가 걸림.
+- [ ] 🟡 **개발자 전용 도구 제거 확인** — 실서비스 오픈 전에 `DevPreviewPanel.jsx`/
+  `devMockResults.js`, `Home.jsx`의 관련 부분(`devTier` state, `DevPreviewPanel` 렌더링,
+  `handleDevMockPreview`/`handleDevFormPreview`/`handleExitDevPreview`, `handleSubmit`의 devTier
+  분기), Edge Function의 `DEV_BYPASS_EMAIL` 관련 코드를 지우고 `supabase secrets unset
+  DEV_BYPASS_EMAIL`까지 할 것 — 실제 유저에게는 안 보여야 함.
 - [ ] 🟡 마이페이지에 계절/TPO 필터 탭 추가 — DB 컬럼과 저장 로직은 이미 완료, 남은 건 `MyPage.jsx`의 필터 탭 UI뿐
 - [ ] 🟡 결과 리빌 애니메이션(fade-in/카드 flip) — 로딩 스켈레톤/로딩 화면은 이번에 완료, 결과가
   뜨는 순간의 전환 효과는 아직
@@ -177,7 +190,8 @@ usage_logs 보안 강화, 이미지 1회=1장 개편, 입력 폼 간소화(상�
 
 ## 아직 사용자가 안 했을 수도 있는 것 (재확인 필요)
 
-- **병렬화 반영을 위한 Edge Function 재배포** — 위 "다음 할 일" 맨 위 항목과 동일.
+- **병렬화 + DEV_BYPASS_EMAIL 반영을 위한 Edge Function 재배포** — 위 "다음 할 일" 맨 위 항목과 동일.
+- `DEV_BYPASS_EMAIL` secret 등록 — 안 하면 "조건 입력해서 실제 생성" 기능이 한도 면제가 안 됨.
 - 새 이미지 프롬프트(캔디드 스냅 스타일) 실제 결과물이 기대만큼 자연스럽게 나오는지 — 아직 미확인.
-- 저장 취소(하트 다시 누르기), 마이페이지 카드 UI, 개발자 미리보기 패널 — 전부 코드는 완료했지만
-  사용자가 실제 화면에서 눈으로 확인한 적은 아직 없음.
+- 저장 취소(하트 다시 누르기, 결과 화면·마이페이지 양쪽), 마이페이지 카드 UI, 입력 정보 불러오기,
+  개발자 도구 — 전부 코드는 완료했지만 사용자가 실제 화면에서 눈으로 확인한 적은 아직 없음.

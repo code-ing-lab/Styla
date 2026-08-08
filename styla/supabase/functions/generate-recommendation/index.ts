@@ -13,6 +13,11 @@ const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+// ⚠️ 개발자 테스트 전용. 이 이메일로 로그인한 계정은 하루 이용 한도를 안 받고,
+// devForceTier로 원하는 티어의 프롬프트/스키마를 강제로 테스트해볼 수 있다.
+// 설정 안 하면(비어있으면) 아무 효과 없음 — `supabase secrets set DEV_BYPASS_EMAIL=본인이메일`로 등록.
+// 테스트 끝나면 `supabase secrets unset DEV_BYPASS_EMAIL`로 없애면 됨.
+const DEV_BYPASS_EMAIL = Deno.env.get('DEV_BYPASS_EMAIL') ?? ''
 
 class LimitExceededError extends Error {}
 
@@ -41,6 +46,9 @@ interface RecommendRequestBody {
   personalColor?: string
   bodyComplex?: string
   photoUrl?: string
+  // ⚠️ 개발자 테스트 전용. DEV_BYPASS_EMAIL 계정이 보낸 경우에만 반영되고,
+  // 그 외 계정이 보내면 서버가 무시하고 실제 티어를 그대로 쓴다.
+  devForceTier?: Tier
 }
 
 Deno.serve(async (req: Request) => {
@@ -50,17 +58,23 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RecommendRequestBody = await req.json()
-    const { tier, userId } = await resolveAuth(req)
+    const { tier: realTier, userId, email } = await resolveAuth(req)
+
+    // DEV_BYPASS_EMAIL로 로그인한 계정만 이용 한도를 건너뛰고, devForceTier로 원하는
+    // 티어의 프롬프트/스키마를 강제로 테스트해볼 수 있다. 다른 계정이 devForceTier를
+    // 보내도 서버가 무시하므로 악용될 여지가 없다(이메일은 클라이언트가 조작 불가).
+    const isDevBypass = Boolean(DEV_BYPASS_EMAIL) && email === DEV_BYPASS_EMAIL
+    const tier: Tier = isDevBypass && body.devForceTier ? body.devForceTier : realTier
 
     // 로그인/프리미엄은 하루 한도를 서버에서 직접 검증한다.
     // (클라이언트의 사전 체크는 UX용일 뿐, 실제 강제는 여기서만 해야 우회할 수 없다.)
-    if (userId) {
+    if (userId && !isDevBypass) {
       await assertUnderDailyLimit(userId, tier as 'member' | 'premium')
     }
 
     const result = await generateWithRetry(tier, body)
 
-    if (userId) {
+    if (userId && !isDevBypass) {
       await incrementDailyUsage(userId).catch((err) =>
         console.error('[generate-recommendation] usage_logs 증가 실패:', err)
       )
@@ -88,10 +102,10 @@ Deno.serve(async (req: Request) => {
 
 // Authorization 헤더로 로그인 사용자를 식별하고, subscriptions 테이블을 조회해
 // 실제 티어(guest/member/premium)를 서버에서 신뢰성 있게 판별한다.
-// (클라이언트가 보낸 tier 값을 그대로 믿지 않는다.)
-async function resolveAuth(req: Request): Promise<{ tier: Tier; userId: string | null }> {
+// (클라이언트가 보낸 tier 값을 그대로 믿지 않는다.) email은 DEV_BYPASS_EMAIL 대조용.
+async function resolveAuth(req: Request): Promise<{ tier: Tier; userId: string | null; email: string | null }> {
   const authHeader = req.headers.get('Authorization')
-  if (!authHeader) return { tier: 'guest', userId: null }
+  if (!authHeader) return { tier: 'guest', userId: null, email: null }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
@@ -101,7 +115,7 @@ async function resolveAuth(req: Request): Promise<{ tier: Tier; userId: string |
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) return { tier: 'guest', userId: null }
+  if (!user) return { tier: 'guest', userId: null, email: null }
 
   const { data: subscription } = await supabase
     .from('subscriptions')
@@ -110,7 +124,7 @@ async function resolveAuth(req: Request): Promise<{ tier: Tier; userId: string |
     .maybeSingle()
 
   const tier: Tier = subscription?.status === 'active' ? 'premium' : 'member'
-  return { tier, userId: user.id }
+  return { tier, userId: user.id, email: user.email ?? null }
 }
 
 function adminClient() {

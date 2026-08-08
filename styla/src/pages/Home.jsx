@@ -54,27 +54,34 @@ export default function Home() {
   const handleSubmit = async (values) => {
     setError(null)
 
-    // 게스트는 하루 단위가 아니라 평생 1회 한도
-    if (tier === TIER.GUEST) {
-      if (hasUsedGuestTrial()) {
-        setShowLimitModal(true)
-        return
-      }
-    } else {
-      const count = await getTodayUsageCount(user.id).catch(() => 0)
-      if (count >= DAILY_LIMIT[tier]) {
-        if (tier === TIER.MEMBER) {
+    // 개발자 미리보기 모드(devTier)에서는 클라이언트 사전 체크를 건너뛴다 — 실제 한도
+    // 우회는 서버가 DEV_BYPASS_EMAIL 계정인지 확인한 뒤에만 허용하므로 안전하다.
+    if (!devTier) {
+      // 게스트는 하루 단위가 아니라 평생 1회 한도
+      if (tier === TIER.GUEST) {
+        if (hasUsedGuestTrial()) {
           setShowLimitModal(true)
-        } else {
-          setError('오늘의 프리미엄 이용 횟수를 모두 사용했습니다. 내일 다시 시도해주세요.')
+          return
         }
-        return
+      } else {
+        const count = await getTodayUsageCount(user.id).catch(() => 0)
+        if (count >= DAILY_LIMIT[tier]) {
+          if (tier === TIER.MEMBER) {
+            setShowLimitModal(true)
+          } else {
+            setError('오늘의 프리미엄 이용 횟수를 모두 사용했습니다. 내일 다시 시도해주세요.')
+          }
+          return
+        }
       }
     }
 
     setSubmitting(true)
     try {
-      const data = await requestRecommendation(values)
+      // devTier가 있으면 devForceTier를 같이 보낸다 — 서버가 DEV_BYPASS_EMAIL 계정으로
+      // 확인되면 그 티어의 프롬프트/스키마로, 아니면 무시하고 실제 티어로 처리한다.
+      const payload = devTier ? { ...values, devForceTier: devTier } : values
+      const data = await requestRecommendation(payload)
       setResult(data)
       setLastValues(values)
       setSaved(false)
@@ -82,7 +89,7 @@ export default function Home() {
       setStep('result')
 
       // 실제 하루 한도 체크·증가는 서버(Edge Function)가 처리한다.
-      if (tier === TIER.GUEST) {
+      if (!devTier && tier === TIER.GUEST) {
         markGuestTrialUsed()
       }
     } catch (err) {
@@ -162,12 +169,24 @@ export default function Home() {
     }
   }
 
-  const handleDevPreview = (previewTier) => {
+  // "결과 화면 미리보기": 실제 API 호출 없이 목업 데이터로 바로 결과 화면을 보여준다.
+  const handleDevMockPreview = (previewTier) => {
     setDevTier(previewTier)
     setResult(getMockResult(previewTier))
     setSaved(false)
     setSavedItemId(null)
     setStep('result')
+  }
+
+  // "조건 입력해서 실제 생성": 폼부터 채워서 실제 API를 호출해보고 싶을 때 씀.
+  // 폼 화면(displayTier=previewTier)으로 이동만 하고, 실제 생성은 handleSubmit에서
+  // devForceTier를 실어 보내는 걸로 처리한다.
+  const handleDevFormPreview = (previewTier) => {
+    setDevTier(previewTier)
+    setResult(null)
+    setSaved(false)
+    setSavedItemId(null)
+    setStep('form')
   }
 
   const handleExitDevPreview = () => {
@@ -180,13 +199,20 @@ export default function Home() {
     <div className="px-6 py-12">
       {step === 'quiz' && <StyleQuiz onComplete={handleQuizComplete} />}
 
-      {step === 'form' && (submitting ? <LoadingScreen /> : <RecommendForm tier={tier} onSubmit={handleSubmit} submitting={submitting} />)}
+      {devTier && step === 'form' && (
+        <p className="mx-auto mb-4 max-w-2xl rounded-full bg-cream-text/90 px-4 py-1.5 text-center text-xs text-white dark:bg-night-text/90 dark:text-night-bg">
+          🔧 개발자 미리보기 모드 ({devTier}) — 제출하면 실제 API를 호출해서 결과를 생성합니다
+        </p>
+      )}
+
+      {step === 'form' &&
+        (submitting ? <LoadingScreen /> : <RecommendForm tier={displayTier} onSubmit={handleSubmit} submitting={submitting} />)}
 
       {step === 'result' && (
         <div className="space-y-8">
           {devTier && (
             <p className="mx-auto max-w-xl rounded-full bg-cream-text/90 px-4 py-1.5 text-center text-xs text-white dark:bg-night-text/90 dark:text-night-bg">
-              🔧 개발자 미리보기 모드 — 실제 저장된 데이터가 아닙니다
+              🔧 개발자 미리보기 모드 — 저장 기능은 꺼져 있어요
             </p>
           )}
           <ResultView
@@ -224,7 +250,12 @@ export default function Home() {
       />
 
       {/* ⚠️ 개발자 테스트 전용 — 제거 방법은 DevPreviewPanel.jsx 상단 주석 참고 */}
-      <DevPreviewPanel onPreview={handleDevPreview} onExitPreview={handleExitDevPreview} previewTier={devTier} />
+      <DevPreviewPanel
+        onMockPreview={handleDevMockPreview}
+        onFormPreview={handleDevFormPreview}
+        onExitPreview={handleExitDevPreview}
+        previewTier={devTier}
+      />
     </div>
   )
 }

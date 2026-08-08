@@ -25,11 +25,37 @@ const initialState = {
   photo: null,
 }
 
+// 이전에 입력한 정보를 기기에 기억해뒀다가 다음에 폼을 열 때 다시 채워주기 위한 저장소.
+// 서버(DB)에는 저장하지 않고 이 브라우저에만 남기는 가벼운 방식이라, 사진(File)은 애초에
+// 직렬화가 안 돼서 제외한다.
+const STORAGE_KEY = 'styla:lastRecommendInput'
+
+function loadStoredValues() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return { ...parsed, photo: null }
+  } catch {
+    return null
+  }
+}
+
+function saveValuesToStorage(values) {
+  try {
+    const { photo: _photo, ...rest } = values
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(rest))
+  } catch {
+    // localStorage를 못 쓰는 환경(프라이빗 모드 등)이면 그냥 조용히 넘어간다 — 필수 기능이 아님.
+  }
+}
+
 // 기본 정보(성별/나이/키/몸무게)만 항상 보이고, 그 외 치수·계절·TPO·선호 무드는
 // "상세조건 더보기"로 접어둔다 (게스트/로그인/프리미엄 공통). 프리미엄은 거기에 더해
 // 얼굴형/퍼스널컬러/선호 무드/체형 콤플렉스/사진을 묻는 "프리미엄 상세조건" 섹션이 추가된다.
 export default function RecommendForm({ tier, onSubmit, submitting }) {
-  const [values, setValues] = useState(initialState)
+  const [storedValues] = useState(loadStoredValues)
+  const [values, setValues] = useState(() => ({ ...initialState, ...storedValues }))
   const [showDetails, setShowDetails] = useState(false)
   const isPremium = tier === TIER.PREMIUM
 
@@ -40,9 +66,15 @@ export default function RecommendForm({ tier, onSubmit, submitting }) {
     update('photo', file)
   }
 
+  const handleReset = () => {
+    localStorage.removeItem(STORAGE_KEY)
+    setValues(initialState)
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!values.gender || !values.height || !values.weight) return
+    saveValuesToStorage(values)
     onSubmit(values)
   }
 
@@ -54,6 +86,15 @@ export default function RecommendForm({ tier, onSubmit, submitting }) {
       <h2 className="font-serif text-2xl font-semibold text-cream-text dark:text-night-text">
         {isPremium ? '사진 분석 · 심화 리포트를 위한 정보를 입력해주세요' : '코디 추천을 위한 정보를 입력해주세요'}
       </h2>
+
+      {storedValues && (
+        <p className="mt-2 text-xs text-cream-subtext dark:text-night-text/60">
+          이전에 입력한 정보를 불러왔어요 ·{' '}
+          <button type="button" onClick={handleReset} className="text-accent-green hover:underline">
+            초기화
+          </button>
+        </p>
+      )}
 
       <div className="mt-6 grid grid-cols-2 gap-4">
         <Field label="성별" required>
