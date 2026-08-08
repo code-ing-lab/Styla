@@ -7,12 +7,14 @@ export function AppProvider({ children }) {
   const [report, setReport] = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
   const [orderEmail, setOrderEmail] = useState(null);
+  const [detailInfo, setDetailInfo] = useState(null);
 
   const resetAll = () => {
     setSurveyAnswers(null);
     setReport(null);
     setSelectedTier(null);
     setOrderEmail(null);
+    setDetailInfo(null);
   };
 
   const value = useMemo(
@@ -25,9 +27,11 @@ export function AppProvider({ children }) {
       setSelectedTier,
       orderEmail,
       setOrderEmail,
+      detailInfo,
+      setDetailInfo,
       resetAll,
     }),
-    [surveyAnswers, report, selectedTier, orderEmail]
+    [surveyAnswers, report, selectedTier, orderEmail, detailInfo]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

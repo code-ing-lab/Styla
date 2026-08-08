@@ -35,7 +35,7 @@ export default function CheckoutPage() {
     // TODO: Polar 체크아웃 세션으로 교체
     setOrderEmail(email);
     await new Promise((resolve) => setTimeout(resolve, 500));
-    navigate(`/report/${tier.id}`);
+    navigate("/details");
   };
 
   return (
