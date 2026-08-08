@@ -35,7 +35,10 @@ export default function ResultPage() {
   if (!report || !surveyAnswers) return null;
 
   const currentSeasonLook = report.looksBySeason[surveyAnswers.currentSeason];
-  const tpoLook = report.looksByTpo[surveyAnswers.tpo];
+  // TPO는 결제 후(AdditionalInfoPage)에 선택하므로, 무료 미리보기 시점엔 아직 없다.
+  // 예시로 대표 TPO 하나를 보여주는 티저로 대체한다.
+  const exampleTpo = Object.keys(report.looksByTpo)[0];
+  const tpoLook = report.looksByTpo[exampleTpo];
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-10 sm:px-8 sm:py-16">
@@ -110,7 +113,7 @@ export default function ResultPage() {
 
           <section>
             <span className="eyebrow">TPO Look</span>
-            <SectionLabel>{surveyAnswers.tpo} 추천 룩</SectionLabel>
+            <SectionLabel>{exampleTpo} 추천 룩 (예시)</SectionLabel>
             <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
               {tpoLook.items.map((item) => (
                 <div key={item}>
@@ -145,6 +148,9 @@ export default function ResultPage() {
               컬러 팔레트, 추천 룩, 최종 요약이
               <br />
               잠겨 있어요
+            </p>
+            <p className="mt-2 text-xs text-text-secondary">
+              결제 후 원하시는 TPO를 선택하시면 딱 맞는 코디를 알려드려요.
             </p>
             <button
               type="button"

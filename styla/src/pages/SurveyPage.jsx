@@ -4,15 +4,15 @@ import ProgressBar from "../components/ProgressBar.jsx";
 import { useApp } from "../context/AppContext.jsx";
 import { generateReport } from "../lib/generateReport.js";
 import { getCurrentSeason } from "../lib/season.js";
+import { saveSurveyAnswers } from "../lib/surveyStorage.js";
 import {
   GENDER_OPTIONS,
   AGE_OPTIONS,
   HEIGHT_OPTIONS,
   WEIGHT_OPTIONS_BY_HEIGHT,
-  TPO_OPTIONS,
 } from "../data/surveyQuestions.js";
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 4;
 
 function OptionButton({ label, selected, onClick }) {
   return (
@@ -40,8 +40,6 @@ export default function SurveyPage() {
     ageGroup: "",
     heightRange: "",
     weightRange: "",
-    tpo: "",
-    schedule: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -50,26 +48,23 @@ export default function SurveyPage() {
     [answers.heightRange]
   );
 
-  const goNext = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS));
   const goBack = () => setStep((s) => Math.max(s - 1, 1));
 
-  const selectAndAdvance = (key, value) => {
-    setAnswers((prev) => {
-      const next = { ...prev, [key]: value };
-      if (key === "heightRange") next.weightRange = "";
-      return next;
-    });
-    goNext();
-  };
+  const selectAndAdvance = async (key, value) => {
+    const next = { ...answers, [key]: value };
+    if (key === "heightRange") next.weightRange = "";
+    setAnswers(next);
 
-  const finishSurvey = async (overrides = {}) => {
+    if (step < TOTAL_STEPS) {
+      setStep((s) => s + 1);
+      return;
+    }
+
+    // 마지막 스텝(몸무게)까지 선택되면 바로 무료 미리보기용 리포트를 생성한다.
     setIsSubmitting(true);
-    const finalAnswers = {
-      ...answers,
-      ...overrides,
-      currentSeason: getCurrentSeason(),
-    };
+    const finalAnswers = { ...next, currentSeason: getCurrentSeason() };
     const report = await generateReport(finalAnswers);
+    saveSurveyAnswers(finalAnswers);
     setSurveyAnswers(finalAnswers);
     setReport(report);
     navigate("/result");
@@ -146,56 +141,11 @@ export default function SurveyPage() {
               />
             ))}
           </div>
-        </StepCard>
-      )}
-
-      {step === 5 && (
-        <StepCard title="어떤 상황의 스타일이 궁금하신가요?">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {TPO_OPTIONS.map((opt) => (
-              <OptionButton
-                key={opt.value}
-                label={opt.label}
-                selected={answers.tpo === opt.value}
-                onClick={() => selectAndAdvance("tpo", opt.value)}
-              />
-            ))}
-          </div>
-        </StepCard>
-      )}
-
-      {step === 6 && (
-        <StepCard
-          title="다가오는 특별한 일정이 있나요?"
-          subtitle="선택 입력이에요. 있다면 알려주세요 (예: 소개팅, 결혼식, 여행 등)"
-        >
-          <textarea
-            value={answers.schedule}
-            onChange={(e) =>
-              setAnswers((prev) => ({ ...prev, schedule: e.target.value }))
-            }
-            placeholder="예: 다음 주 소개팅이 있어요"
-            rows={4}
-            className="w-full rounded-2xl border border-border-subtle bg-surface-card px-4 py-3 text-base text-text-primary outline-none placeholder:text-text-secondary focus:border-accent-green"
-          />
-          <div className="mt-4 flex gap-3">
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={finishSurvey}
-              className="flex-1 rounded-2xl bg-accent-green px-5 py-4 text-base font-semibold text-white transition hover:bg-accent-green-dark disabled:opacity-60"
-            >
-              {isSubmitting ? "리포트 생성 중..." : "결과 보기"}
-            </button>
-            <button
-              type="button"
-              disabled={isSubmitting}
-              onClick={() => finishSurvey({ schedule: "" })}
-              className="rounded-2xl border border-border-subtle px-5 py-4 text-base font-medium text-text-secondary transition hover:border-accent-green hover:text-text-primary disabled:opacity-60"
-            >
-              건너뛰기
-            </button>
-          </div>
+          {isSubmitting && (
+            <p className="mt-4 text-center text-sm text-text-secondary">
+              리포트 생성 중...
+            </p>
+          )}
         </StepCard>
       )}
     </div>

@@ -9,6 +9,7 @@ const SEASON_ORDER = ["봄", "여름", "가을", "겨울"];
 const GRID_COLS_CLASS = {
   2: "sm:grid-cols-2",
   3: "sm:grid-cols-3",
+  4: "sm:grid-cols-4",
 };
 
 function ItemGrid({ items, cols = 3 }) {
@@ -24,18 +25,26 @@ function ItemGrid({ items, cols = 3 }) {
   );
 }
 
-function SeasonCard({ season, look, highlight }) {
+function SeasonSection({ season, look, highlight }) {
   return (
     <div
-      className={`rounded-2xl border p-4 ${
+      className={`rounded-2xl border p-5 ${
         highlight ? "border-accent-gold" : "border-border-subtle"
       }`}
     >
-      <p className="eyebrow">{season}</p>
-      <div className="mt-3">
-        <ItemGrid items={look.items} cols={2} />
+      <p className="eyebrow">Season</p>
+      <h3 className="mt-1 font-report-title text-lg font-semibold text-text-primary">
+        {season}
+        {highlight && (
+          <span className="ml-2 align-middle text-xs font-medium text-accent-gold">
+            현재 계절
+          </span>
+        )}
+      </h3>
+      <div className="mt-4">
+        <ItemGrid items={look.items} cols={4} />
       </div>
-      <p className="mt-3 text-xs text-text-secondary">{look.tip}</p>
+      <p className="mt-3 text-sm text-text-secondary">{look.tip}</p>
     </div>
   );
 }
@@ -193,9 +202,9 @@ export default function FullReportPage() {
           <h2 className="font-report-title text-xl font-semibold sm:text-2xl">
             {tier.id === "tier1" ? `${surveyAnswers.currentSeason} 추천 룩` : "사계절 추천 룩"}
           </h2>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <div className="mt-4 space-y-4">
             {seasonsToShow.map((season) => (
-              <SeasonCard
+              <SeasonSection
                 key={season}
                 season={season}
                 look={report.looksBySeason[season]}

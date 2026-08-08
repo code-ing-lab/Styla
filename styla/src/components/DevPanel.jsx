@@ -6,14 +6,12 @@ import { getCurrentSeason } from "../lib/season.js";
 import { TIERS } from "../lib/tiers.js";
 
 // 개발 중 결제 플로우를 매번 반복하지 않고 유료 화면을 바로 확인하기 위한 패널.
-// import.meta.env.DEV가 false인 프로덕션 빌드에는 포함되지 않는다.
-const MOCK_ANSWERS = {
+// 로컬 dev 서버에서는 항상 보이고, 배포된 사이트에서는 ?dev=1일 때만 보인다.
+const BASE_MOCK_ANSWERS = {
   gender: "female",
   ageGroup: "20s",
   heightRange: "160to170",
   weightRange: "50to55",
-  tpo: "데이트룩",
-  schedule: "다음 주 소개팅이 있어요",
 };
 
 const navButtonClass =
@@ -25,9 +23,15 @@ export default function DevPanel() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const seedAndGo = async (path, tierId) => {
+  // path === "/additional-info" 로 갈 때는 TPO/일정 없이 기본 정보만 채워서
+  // 그 페이지의 입력 플로우를 처음부터 테스트할 수 있게 한다.
+  // path === "/report/:tier" 로 바로 갈 때는 TPO/일정까지 채워서 AdditionalInfoPage를 건너뛴다.
+  const seedAndGo = async (path, tierId, includeAdditionalInfo) => {
     setLoading(true);
-    const finalAnswers = { ...MOCK_ANSWERS, currentSeason: getCurrentSeason() };
+    const baseAnswers = { ...BASE_MOCK_ANSWERS, currentSeason: getCurrentSeason() };
+    const finalAnswers = includeAdditionalInfo
+      ? { ...baseAnswers, tpo: "데이트룩", schedule: "다음 주 소개팅이 있어요" }
+      : baseAnswers;
     const report = await generateReport(finalAnswers);
     setSurveyAnswers(finalAnswers);
     setReport(report);
@@ -42,33 +46,37 @@ export default function DevPanel() {
     <div className="fixed bottom-4 right-4 z-50 font-mono text-xs">
       {open && (
         <div className="mb-2 w-60 rounded-2xl border border-dashed border-red-400 bg-surface-card p-3 shadow-xl">
-          <p className="mb-2 font-bold tracking-wide text-red-500">DEV MODE — 유료 화면 바로가기</p>
+          <p className="mb-2 font-bold tracking-wide text-red-500">DEV MODE — 화면 바로가기</p>
           <div className="flex flex-col gap-1.5">
-            <button type="button" onClick={() => seedAndGo("/result")} className={navButtonClass}>
+            <button
+              type="button"
+              onClick={() => seedAndGo("/result", null, false)}
+              className={navButtonClass}
+            >
               무료 미리보기 (/result)
             </button>
             <button
               type="button"
-              onClick={() => seedAndGo("/checkout", "tier2")}
+              onClick={() => seedAndGo("/checkout", "tier2", false)}
               className={navButtonClass}
             >
               체크아웃 (/checkout)
             </button>
             {TIERS.map((tier) => (
               <button
-                key={`details-${tier.id}`}
+                key={`additional-${tier.id}`}
                 type="button"
-                onClick={() => seedAndGo("/details", tier.id)}
+                onClick={() => seedAndGo("/additional-info", tier.id, false)}
                 className={navButtonClass}
               >
-                상세정보 입력 ({tier.name})
+                추가정보 입력 ({tier.name})
               </button>
             ))}
             {TIERS.map((tier) => (
               <button
                 key={`report-${tier.id}`}
                 type="button"
-                onClick={() => seedAndGo(`/report/${tier.id}`, tier.id)}
+                onClick={() => seedAndGo(`/report/${tier.id}`, tier.id, true)}
                 className={navButtonClass}
               >
                 최종 리포트 ({tier.name})

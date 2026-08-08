@@ -54,25 +54,10 @@ export const WEIGHT_OPTIONS_BY_HEIGHT = {
   ],
 };
 
-export const SEASON_OPTIONS = ["봄", "여름", "가을", "겨울"];
-
 export const TPO_OPTIONS = [
   { value: "오피스룩", label: "오피스룩" },
   { value: "캐주얼룩", label: "캐주얼룩" },
   { value: "데이트룩", label: "데이트룩" },
   { value: "하객룩", label: "하객룩" },
   { value: "여행·캠핑룩", label: "여행·캠핑룩" },
-];
-
-// 결제 후 상세 입력 폼(구 프리미엄 폼)에서 사용하는 선택지
-export const PERSONAL_COLOR_OPTIONS = ["봄 웜톤", "여름 쿨톤", "가을 웜톤", "겨울 쿨톤"];
-
-export const FACE_SHAPE_OPTIONS = ["계란형", "둥근형", "각진형", "긴형", "하트형"];
-
-export const BODY_COMPLEX_OPTIONS = [
-  "어깨가 넓어요",
-  "하체가 두꺼워요",
-  "허리가 밋밋해요",
-  "키가 작아요",
-  "팔뚝이 신경쓰여요",
 ];
