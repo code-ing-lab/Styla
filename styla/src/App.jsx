@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header.jsx";
 import DevPanel from "./components/DevPanel.jsx";
@@ -6,13 +7,20 @@ import ResultPage from "./pages/ResultPage.jsx";
 import CheckoutPage from "./pages/CheckoutPage.jsx";
 import DetailInputPage from "./pages/DetailInputPage.jsx";
 import FullReportPage from "./pages/FullReportPage.jsx";
+import { isDevModeEnabled, syncDevModeFromUrl } from "./lib/devMode.js";
 
 function Layout({ children }) {
+  const [devMode, setDevMode] = useState(isDevModeEnabled);
+
+  useEffect(() => {
+    setDevMode(syncDevModeFromUrl());
+  }, []);
+
   return (
     <div className="min-h-screen bg-surface text-text-primary">
       <Header />
       <main>{children}</main>
-      {import.meta.env.DEV && <DevPanel />}
+      {devMode && <DevPanel />}
     </div>
   );
 }
