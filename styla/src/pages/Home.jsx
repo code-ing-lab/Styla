@@ -100,9 +100,13 @@ export default function Home() {
     const description =
       tier === TIER.PREMIUM ? result.summary?.keyFormulas?.join(' · ') ?? '' : result.paragraphs?.join('\n\n') ?? ''
 
+    // 이미지는 image_url에 이미 저장하므로, result에는 images를 빼고 저장해
+    // (base64라 용량이 커서) 같은 이미지를 한 row에 두 번 넣지 않게 한다.
+    const { images: _images, ...resultWithoutImages } = result
+
     try {
-      // result 전체를 jsonb로 같이 저장해서, 나중에 마이페이지에서 저장한 코디를 열어봤을 때
-      // 당시 AI가 준 진단 내용(체형분석/스타일가이드 등)을 그대로 복기할 수 있게 한다.
+      // result(이미지 제외) 전체를 jsonb로 같이 저장해서, 나중에 마이페이지에서 저장한 코디를
+      // 열어봤을 때 당시 AI가 준 진단 내용(체형분석/스타일가이드 등)을 그대로 복기할 수 있게 한다.
       await supabase.from('saved_items').insert({
         user_id: user.id,
         tier,
@@ -112,7 +116,7 @@ export default function Home() {
         image_url: result.images?.[0] ?? null,
         season: lastValues?.season ?? null,
         tpo: lastValues?.tpo ?? null,
-        result,
+        result: resultWithoutImages,
       })
       setSaved(true)
     } catch (err) {

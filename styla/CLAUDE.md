@@ -76,6 +76,20 @@
 2. 로그인 후에도 게스트 화면 뜨는 버그 → `Home.jsx`의 `step` state를 `isLoggedIn` 초기값으로 useState에 넣어서, OAuth 리다이렉트 직후 세션 반영 타이밍과 어긋났음. `step`을 `null`로 시작 + `useEffect`로 authLoading 완료 후 결정하도록 수정.
 3. Netlify 환경변수에 anon key 붙여넣을 때 개행 섞여서 `apikey` 헤더가 아예 안 실리는 401 발생 → 재입력으로 해결.
 4. `usage_logs` RLS `for all` → 클라이언트가 직접 한도 조작 가능했던 보안 구멍 → 위 "보안 관련 중요 결정" 참고.
+5. `saved_items.result`에 AI 응답(`result`) 전체를 그대로 저장하면서 `images`(base64, 수백KB~1MB)까지
+   같이 들어가 `image_url`과 이미지가 중복 저장되던 버그 → `Home.jsx`의 `handleToggleSave`에서 `images`를
+   뺀 `resultWithoutImages`만 `result` 컬럼에 저장하도록 수정함(코드 리뷰로 발견, 커밋 전에 바로 수정).
+
+## ⚠️ 알려진 미완성 기능 (고치기 전 인지만 해둘 것)
+
+- **프리미엄 "사진 업로드"가 실제로는 동작하지 않음.** `RecommendForm`에서 `values.photo`는 `File` 객체
+  그대로 state에 들어가는데, `ai.js`의 `requestRecommendation`이 `supabase.functions.invoke(..., { body: formValues })`로
+  그냥 JSON 직렬화해서 보내기 때문에 `File` 객체는 빈 객체(`{}`)로 사라짐 — 서버에 사진이 전혀 전달되지
+  않음. 게다가 `generate-recommendation`의 `RecommendRequestBody.photoUrl` 필드는 정의만 돼 있고
+  `describeInput()`/프롬프트 어디에서도 실제로 안 쓰임. 즉 사용자가 사진을 올려도 AI는 그 사진을 전혀
+  보지 못하는 상태. 이건 이번 세션 변경으로 생긴 문제가 아니라 원래부터 그랬던 미완성 기능(Supabase
+  Storage 업로드 + gpt-image 쪽에 이미지 입력을 실제로 연결하는 작업이 필요) — 지금 당장 고치라는 요청은
+  없었어서 손 안 댔지만, 프롬프트 작업 들어갈 때 사용자에게 짚고 넘어갈 것.
 
 ## 완료된 것 (Phase 0~7 + 추가 개선)
 
