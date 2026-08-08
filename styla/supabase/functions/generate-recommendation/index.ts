@@ -19,19 +19,19 @@ const CORS_HEADERS = {
 }
 
 interface RecommendRequestBody {
-  // 공통 입력 (모든 티어)
+  // 공통 입력 (모든 티어) — 2-1 개편으로 무료/게스트는 이 4개만 받는다.
   gender: string
-  height: number
-  weight: number
+  bodyShape?: string
+  personalColor?: string
+  tpo?: string
+  // 프리미엄 진입 시 2단계(정밀 정보)에서만 채워지는 입력
+  height?: number
+  weight?: number
   age?: number
   bust?: number
   waist?: number
   hip?: number
   legLength?: number
-  season?: string
-  tpo?: string
-  // 프리미엄 전용 입력
-  personalColor?: string
   faceShape?: string
   bodyComplex?: string[]
   photoUrl?: string
@@ -244,14 +244,14 @@ async function callOpenAIImage(prompt: string, quality: 'low' | 'medium' | 'high
 function describeInput(input: RecommendRequestBody): string {
   const parts = [
     `성별 ${input.gender}`,
-    `키 ${input.height}cm`,
-    `몸무게 ${input.weight}kg`,
+    input.bodyShape && `체형 ${input.bodyShape}`,
+    input.height && `키 ${input.height}cm`,
+    input.weight && `몸무게 ${input.weight}kg`,
     input.age && `나이 ${input.age}세`,
     input.bust && `가슴둘레 ${input.bust}cm`,
     input.waist && `허리둘레 ${input.waist}cm`,
     input.hip && `엉덩이둘레 ${input.hip}cm`,
     input.legLength && `다리길이 ${input.legLength}cm`,
-    input.season && `계절/날씨 ${input.season}`,
     input.tpo && `TPO ${input.tpo}`,
     input.personalColor && `퍼스널컬러 ${input.personalColor}`,
     input.faceShape && `얼굴형 ${input.faceShape}`,
