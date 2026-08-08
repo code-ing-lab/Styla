@@ -23,3 +23,11 @@ export const IMAGE_COUNT: Record<Tier, number> = {
   member: 3,
   premium: 6,
 }
+
+// 로그인/프리미엄 하루 이용 한도. usage_logs 체크·증가는 이 값을 기준으로
+// generate-recommendation Edge Function이 서버에서만 수행한다.
+// (게스트는 하루 단위가 아니라 평생 1회이며 localStorage로만 관리되므로 여기 포함하지 않는다.)
+export const DAILY_LIMIT: Record<'member' | 'premium', number> = {
+  member: 3,
+  premium: 5,
+}

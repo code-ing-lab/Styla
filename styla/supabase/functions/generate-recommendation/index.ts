@@ -4,11 +4,14 @@
 // 주입한다. 프론트엔드(src/**)에는 이 키가 절대 노출되지 않는다.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { IMAGE_COUNT, IMAGE_QUALITY, OPENAI_IMAGE_MODEL, OPENAI_TEXT_MODEL, type Tier } from '../_shared/config.ts'
+import { DAILY_LIMIT, IMAGE_COUNT, IMAGE_QUALITY, OPENAI_IMAGE_MODEL, OPENAI_TEXT_MODEL, type Tier } from '../_shared/config.ts'
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+
+class LimitExceededError extends Error {}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -41,14 +44,34 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RecommendRequestBody = await req.json()
-    const tier = await resolveTier(req)
+    const { tier, userId } = await resolveAuth(req)
+
+    // 로그인/프리미엄은 하루 한도를 서버에서 직접 검증한다.
+    // (클라이언트의 사전 체크는 UX용일 뿐, 실제 강제는 여기서만 해야 우회할 수 없다.)
+    if (userId) {
+      await assertUnderDailyLimit(userId, tier as 'member' | 'premium')
+    }
+
     const result = await generateWithRetry(tier, body)
+
+    if (userId) {
+      await incrementDailyUsage(userId).catch((err) =>
+        console.error('[generate-recommendation] usage_logs 증가 실패:', err)
+      )
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error) {
+    if (error instanceof LimitExceededError) {
+      return new Response(JSON.stringify({ error: 'limit_exceeded', message: error.message }), {
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        status: 429,
+      })
+    }
+
     console.error('[generate-recommendation] error:', error)
     return new Response(
       JSON.stringify({ error: '추천 생성에 실패했습니다. 잠시 후 다시 시도해주세요.' }),
@@ -60,9 +83,9 @@ Deno.serve(async (req: Request) => {
 // Authorization 헤더로 로그인 사용자를 식별하고, subscriptions 테이블을 조회해
 // 실제 티어(guest/member/premium)를 서버에서 신뢰성 있게 판별한다.
 // (클라이언트가 보낸 tier 값을 그대로 믿지 않는다.)
-async function resolveTier(req: Request): Promise<Tier> {
+async function resolveAuth(req: Request): Promise<{ tier: Tier; userId: string | null }> {
   const authHeader = req.headers.get('Authorization')
-  if (!authHeader) return 'guest'
+  if (!authHeader) return { tier: 'guest', userId: null }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
@@ -72,7 +95,7 @@ async function resolveTier(req: Request): Promise<Tier> {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) return 'guest'
+  if (!user) return { tier: 'guest', userId: null }
 
   const { data: subscription } = await supabase
     .from('subscriptions')
@@ -80,7 +103,55 @@ async function resolveTier(req: Request): Promise<Tier> {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  return subscription?.status === 'active' ? 'premium' : 'member'
+  const tier: Tier = subscription?.status === 'active' ? 'premium' : 'member'
+  return { tier, userId: user.id }
+}
+
+function adminClient() {
+  // usage_logs는 RLS상 클라이언트에서 읽기(select)만 가능하므로,
+  // 한도 체크/증가는 서비스 롤 키로만 수행해 사용자가 직접 조작할 수 없게 한다.
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+}
+
+function todayString(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+async function assertUnderDailyLimit(userId: string, tier: 'member' | 'premium') {
+  const { data, error } = await adminClient()
+    .from('usage_logs')
+    .select('count')
+    .eq('user_id', userId)
+    .eq('usage_date', todayString())
+    .maybeSingle()
+
+  if (error) throw error
+
+  const count = data?.count ?? 0
+  if (count >= DAILY_LIMIT[tier]) {
+    throw new LimitExceededError('오늘의 이용 횟수를 모두 사용했습니다.')
+  }
+}
+
+async function incrementDailyUsage(userId: string) {
+  const admin = adminClient()
+  const { data, error: selectError } = await admin
+    .from('usage_logs')
+    .select('count')
+    .eq('user_id', userId)
+    .eq('usage_date', todayString())
+    .maybeSingle()
+
+  if (selectError) throw selectError
+
+  const { error: upsertError } = await admin
+    .from('usage_logs')
+    .upsert(
+      { user_id: userId, usage_date: todayString(), count: (data?.count ?? 0) + 1 },
+      { onConflict: 'user_id,usage_date' }
+    )
+
+  if (upsertError) throw upsertError
 }
 
 async function generateWithRetry(tier: Tier, input: RecommendRequestBody, maxRetries = 2) {

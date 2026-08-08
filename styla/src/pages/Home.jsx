@@ -7,8 +7,8 @@ import SubscribeBanner from '../components/SubscribeBanner'
 import { useAuth } from '../context/AuthContext'
 import { getTier, TIER, DAILY_LIMIT } from '../lib/tiers'
 import { hasUsedGuestTrial, markGuestTrialUsed } from '../lib/guestUsage'
-import { getTodayUsageCount, incrementTodayUsage } from '../lib/usageLogs'
-import { requestRecommendation } from '../lib/ai'
+import { getTodayUsageCount } from '../lib/usageLogs'
+import { requestRecommendation, LimitExceededError } from '../lib/ai'
 import { supabase } from '../lib/supabaseClient'
 
 export default function Home() {
@@ -70,12 +70,20 @@ export default function Home() {
       setSavedIndexes(new Set())
       setStep('result')
 
+      // 실제 하루 한도 체크·증가는 서버(Edge Function)가 처리한다.
       if (tier === TIER.GUEST) {
         markGuestTrialUsed()
-      } else {
-        await incrementTodayUsage(user.id)
       }
     } catch (err) {
+      if (err instanceof LimitExceededError) {
+        // 클라이언트 사전 체크를 통과했더라도(예: 다른 탭에서 이미 소진) 서버가 최종 거부한 경우
+        if (tier === TIER.MEMBER) {
+          setShowLimitModal(true)
+        } else {
+          setError('오늘의 프리미엄 이용 횟수를 모두 사용했습니다. 내일 다시 시도해주세요.')
+        }
+        return
+      }
       console.error(err)
       setError('AI 추천 생성에 실패했습니다. Supabase Edge Function 연동 설정을 확인해주세요.')
     } finally {
