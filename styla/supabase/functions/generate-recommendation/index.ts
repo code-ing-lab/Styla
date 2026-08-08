@@ -38,6 +38,8 @@ interface RecommendRequestBody {
   hip?: number
   legLength?: number
   season?: string
+  weather?: string
+  // TPO는 고정 옵션이 아니라 자유 문장으로 받는다(예: "친구 결혼식", "소개팅").
   tpo?: string
   // 무료/로그인은 상세조건 더보기 안에서, 프리미엄은 "프리미엄 상세조건" 안에서 받는다
   preferredMood?: string
@@ -194,7 +196,9 @@ async function generateWithRetry(tier: Tier, input: RecommendRequestBody, maxRet
       // 응답 속도를 단축한다. "1회 요청 = 이미지 1장" 원칙이라 이미지는 1장만.
       const imagePrompt = buildImagePrompt({
         gender: input.gender,
+        age: input.age,
         season: input.season,
+        weather: input.weather,
         tpo: input.tpo,
         mood: input.preferredMood,
         personalColor: input.personalColor,
@@ -289,7 +293,8 @@ function describeInput(input: RecommendRequestBody): string {
     input.waist && `허리둘레 ${input.waist}cm`,
     input.hip && `엉덩이둘레 ${input.hip}cm`,
     input.legLength && `다리길이 ${input.legLength}cm`,
-    input.season && `계절/날씨 ${input.season}`,
+    input.season && `계절 ${input.season}`,
+    input.weather && `세부 날씨 ${input.weather}`,
     input.tpo && `TPO ${input.tpo}`,
     input.preferredMood && `선호 무드/스타일 ${input.preferredMood}`,
     input.personalColor && `퍼스널컬러 ${input.personalColor}`,
@@ -473,6 +478,7 @@ const SYSTEM_PROMPT: Record<Tier, string> = {
 
 interface ImagePromptInput {
   gender: string
+  age?: number
   season?: string
   weather?: string
   tpo?: string
@@ -488,9 +494,12 @@ interface ImagePromptInput {
 // 트렌드 키워드는 별도 파일에 수동으로 박아두는 대신, 이미지 생성 모델이 요청 시점에 계절/연도를
 // 참고해서 알아서 판단하도록 프롬프트에 위임한다(트렌드 목록을 분기마다 직접 갱신할 필요 없음 —
 // 다만 모델 학습 데이터 기준의 "일반적인 계절 트렌드"라서, 실시간 유행과는 다를 수 있음).
-function buildImagePrompt({ gender, season, weather, tpo, mood, personalColor, tier }: ImagePromptInput): string {
+function buildImagePrompt({ gender, age, season, weather, tpo, mood, personalColor, tier }: ImagePromptInput): string {
   // RecommendForm의 성별 값은 'male'/'female'/'unspecified'(영문)라 그대로 판별한다.
   const genderTerm = gender === 'male' ? 'male' : 'female'
+  // 나이를 안 넣으면 모델이 임의의 나이대로 그려서 실제 사용자 나이와 동떨어진 결과가
+  // 나올 수 있다 — 이미지 프롬프트에도 반드시 나이를 반영한다(텍스트 리포트 쪽은 이미 반영돼 있었음).
+  const ageTerm = age ? ` who looks approximately ${age} years old` : ''
 
   // 자연스러움을 위한 촬영 기법 키워드 — "studio" 대신 다큐멘터리/스트리트 스냅 느낌으로
   const photographyStyle =
@@ -498,7 +507,7 @@ function buildImagePrompt({ gender, season, weather, tpo, mood, personalColor, t
     'shallow depth of field, soft natural daylight, slight motion blur suggesting ' +
     'the subject is mid-stride or caught in a natural, unposed moment.'
 
-  const base = `A ${genderTerm} model captured in a candid street-style photo, ` +
+  const base = `A ${genderTerm} model${ageTerm} captured in a candid street-style photo, ` +
     `wearing a complete coordinated outfit suitable for ${tpo || 'daily'} occasions ` +
     `during ${season || 'current season'} weather (${weather || 'mild'}). ${photographyStyle}`
 

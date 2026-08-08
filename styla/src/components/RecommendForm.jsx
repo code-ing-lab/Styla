@@ -3,7 +3,13 @@ import { Upload } from 'lucide-react'
 import { TIER } from '../lib/tiers'
 
 const SEASON_OPTIONS = ['봄', '여름', '가을', '겨울']
-const TPO_OPTIONS = ['데일리', '오피스', '데이트', '모임 · 파티', '여행']
+// 계절을 1차로 고르면 그 계절에 맞는 세부 날씨를 2차로 고를 수 있게 한다.
+const WEATHER_OPTIONS_BY_SEASON = {
+  봄: ['따뜻함', '쌀쌀함', '비'],
+  여름: ['무더위', '장마 · 비', '선선한 저녁'],
+  가을: ['선선함', '쌀쌀함', '건조함'],
+  겨울: ['한파', '눈', '포근함'],
+}
 const PERSONAL_COLOR_OPTIONS = ['봄 웜톤', '여름 쿨톤', '가을 웜톤', '겨울 쿨톤']
 const FACE_SHAPE_OPTIONS = ['계란형', '둥근형', '각진형', '긴형', '하트형']
 
@@ -17,6 +23,7 @@ const initialState = {
   hip: '',
   legLength: '',
   season: '',
+  weather: '',
   tpo: '',
   preferredMood: '',
   faceShape: '',
@@ -60,6 +67,9 @@ export default function RecommendForm({ tier, onSubmit, submitting }) {
   const isPremium = tier === TIER.PREMIUM
 
   const update = (key, value) => setValues((prev) => ({ ...prev, [key]: value }))
+
+  // 계절이 바뀌면 세부 날씨 옵션 자체가 달라지므로, 이전 계절 기준으로 골랐던 값은 초기화한다.
+  const updateSeason = (season) => setValues((prev) => ({ ...prev, season, weather: '' }))
 
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0] ?? null
@@ -167,8 +177,8 @@ export default function RecommendForm({ tier, onSubmit, submitting }) {
             />
           </Field>
 
-          <Field label="계절 · 날씨">
-            <select className={selectClass} value={values.season} onChange={(e) => update('season', e.target.value)}>
+          <Field label="계절">
+            <select className={selectClass} value={values.season} onChange={(e) => updateSeason(e.target.value)}>
               <option value="">선택</option>
               {SEASON_OPTIONS.map((s) => (
                 <option key={s} value={s}>
@@ -178,15 +188,30 @@ export default function RecommendForm({ tier, onSubmit, submitting }) {
             </select>
           </Field>
 
-          <Field label="TPO">
-            <select className={selectClass} value={values.tpo} onChange={(e) => update('tpo', e.target.value)}>
-              <option value="">선택</option>
-              {TPO_OPTIONS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+          <Field label="세부 날씨">
+            <select
+              className={selectClass}
+              value={values.weather}
+              onChange={(e) => update('weather', e.target.value)}
+              disabled={!values.season}
+            >
+              <option value="">{values.season ? '선택' : '계절을 먼저 선택하세요'}</option>
+              {(WEATHER_OPTIONS_BY_SEASON[values.season] ?? []).map((w) => (
+                <option key={w} value={w}>
+                  {w}
                 </option>
               ))}
             </select>
+          </Field>
+
+          <Field label="TPO" className="col-span-2">
+            <input
+              type="text"
+              placeholder="예: 친구 결혼식, 소개팅, 회사 워크숍..."
+              className={inputClass}
+              value={values.tpo}
+              onChange={(e) => update('tpo', e.target.value)}
+            />
           </Field>
 
           {!isPremium && (
