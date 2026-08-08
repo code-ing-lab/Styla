@@ -50,6 +50,16 @@ export default function MyPage() {
     return <p className="py-24 text-center text-sm text-cream-subtext dark:text-night-text/60">불러오는 중...</p>
   }
 
+  const handleUnsave = async (id) => {
+    try {
+      const { error } = await supabase.from('saved_items').delete().eq('id', id)
+      if (error) throw error
+      setSavedItems((prev) => prev.filter((item) => item.id !== id))
+    } catch (err) {
+      console.error('저장 취소 실패:', err)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="font-serif text-2xl font-semibold text-cream-text dark:text-night-text">마이페이지</h1>
@@ -76,7 +86,7 @@ export default function MyPage() {
         // "전체 진단 보기"로 펼쳐도 옆 카드들까지 같이 늘어나 보인다 — 그걸 막기 위한 설정.
         <div className="mt-4 grid grid-cols-1 items-start gap-4 sm:grid-cols-3">
           {savedItems.map((item) => (
-            <SavedItemCard key={item.id} item={item} />
+            <SavedItemCard key={item.id} item={item} onUnsave={handleUnsave} />
           ))}
         </div>
       )}
@@ -90,8 +100,17 @@ export default function MyPage() {
 // 저장 당시 AI가 준 진단 내용(result, jsonb)을 나중에 다시 열어볼 수 있게
 // 카드에 이미지 + 제목 + "전체 진단 보기" 토글을 둔다. 상단엔 짧은 정보만 두고,
 // 나머지는 토글 안에서 (JSON 원문이 아니라) 읽기 좋게 정리해서 보여준다.
-function SavedItemCard({ item }) {
+function SavedItemCard({ item, onUnsave }) {
   const [expanded, setExpanded] = useState(false)
+  const [unsaving, setUnsaving] = useState(false)
+
+  const handleHeartClick = async () => {
+    setUnsaving(true)
+    await onUnsave(item.id)
+    // 삭제 성공 시 카드 자체가 목록에서 사라지므로 setUnsaving(false)는 필요 없다.
+    // (실패한 경우엔 콘솔 에러만 남기고 카드가 그대로 남아있어서, 다시 눌러볼 수 있게 풀어준다.)
+    setUnsaving(false)
+  }
 
   return (
     <div className="rounded-3xl border border-cream-border bg-cream-card p-4 dark:border-night-border dark:bg-night-card">
@@ -104,7 +123,15 @@ function SavedItemCard({ item }) {
       )}
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-cream-text dark:text-night-text">{item.title}</p>
-        <Heart size={16} className="text-accent-green" fill="currentColor" />
+        <button
+          type="button"
+          onClick={handleHeartClick}
+          disabled={unsaving}
+          aria-label="저장 취소"
+          className="text-accent-green transition-opacity hover:opacity-70 disabled:opacity-40"
+        >
+          <Heart size={16} fill="currentColor" />
+        </button>
       </div>
       {(item.season || item.tpo) && (
         <p className="mt-1 text-xs text-cream-subtext dark:text-night-text/60">
