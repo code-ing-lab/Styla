@@ -107,8 +107,6 @@ DB 저장 없이 **매 요청마다 다시 입력**받는 방식이다(로그인
 - `supabase/schema.sql` — DB 스키마 (profiles/saved_items/usage_logs/subscriptions + RLS) — 새로 세팅할 때 기준
 - `supabase/migrations/` — 이미 배포된 DB에 스키마 변경을 반영할 때 쓰는 1회성 SQL 파일들
 - `supabase/functions/_shared/config.ts` — AI 모델/화질/이미지수/일일한도 공유 설정
-- `supabase/functions/_shared/trendKeywords.ts` — 이미지 프롬프트에 넣는 시즌 트렌드 키워드.
-  **분기별(3개월마다) 수동 업데이트 필요** — 파일 상단에 마지막 업데이트 날짜 적어둠.
 - `supabase/functions/generate-recommendation` — AI 추천 생성 (OpenAI 실연동 완료)
 - `supabase/functions/delete-account` — 회원탈퇴
 
@@ -149,8 +147,13 @@ usage_logs 보안 강화, 이미지 1회=1장 개편, 입력 폼 간소화(상�
 사용자가 직접 작성한 프롬프트 3종을 그대로 반영, `ResultView.jsx`도 새 스키마에 맞춰 재작성),
 게스트 이미지 생성 제거(로그인 전환 유인 실험), **이미지 프롬프트 재작성**(`buildImagePrompt` —
 예전엔 "패션 화보 스타일..." 한 줄이라 결과가 인위적이었는데, 필름 그레인/자연광/부자연스러운
-포즈 지양 같은 촬영 기법 지시 + 시즌 트렌드 키워드(`trendKeywords.ts`, 분기별 수동 업데이트 필요)를
-넣어서 재작성함 — 사용자가 직접 작성) — 전부 완료 및 브랜치에 푸시됨. DB는 사용자가
+포즈 지양 같은 촬영 기법 지시를 넣어서 재작성함 — 사용자가 직접 작성). 트렌드 키워드는 처음엔
+별도 파일(`trendKeywords.ts`)에 분기별 수동 업데이트하는 방식으로 넣었다가, 유지보수 부담 때문에
+**파일을 없애고 이미지 생성 모델이 요청 시점의 연도/계절을 참고해서 알아서 판단하도록 위임**하는
+방식으로 바꿈(`buildImagePrompt`의 `trendPart` — `new Date().getFullYear()`로 연도만 동적으로
+넣어줌). 대신 모델 학습 데이터 기준의 "일반적인 계절 트렌드"라서 진짜 실시간 유행은 아님 —
+더 정확하게 하려면 웹 검색/트렌드 API 연동이 필요한데 지금 규모에선 과함으로 판단해 보류함.
+— 전부 완료 및 브랜치에 푸시됨. DB는 사용자가
 `2026-08-08_full_reset.sql`로 리셋 완료. `OPENAI_API_KEY` secret 등록 완료, Edge Function
 재배포도 완료 확인함(단, 이미지 프롬프트 변경은 이 재배포 이후에 한 것이라 **한 번 더 재배포
 필요** — 아래 "다음 할 일" 참고). Netlify의 Production branch가 예전 브랜치

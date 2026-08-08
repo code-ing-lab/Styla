@@ -8,7 +8,6 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { DAILY_LIMIT, IMAGE_QUALITY, OPENAI_IMAGE_MODEL, OPENAI_TEXT_MODEL, type Tier } from '../_shared/config.ts'
-import { getCurrentTrendKeywords } from '../_shared/trendKeywords.ts'
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
@@ -464,9 +463,12 @@ interface ImagePromptInput {
 }
 
 // 사용자가 직접 작성한 이미지 프롬프트. 예전엔 "패션 화보 스타일의 전신 코디 이미지..." 한 줄짜리라
-// 결과물이 인위적이고 스톡사진 같았는데, 촬영 기법(필름 그레인/자연광/부자연스러운 포즈 지양)과
-// 시즌 트렌드 키워드(trendKeywords.ts)를 넣어서 더 자연스럽고 트렌디하게 나오도록 재작성함.
-// AI가 생성한 텍스트 리포트(keywords/bodyType 등)에 기대지 않고, 유저 입력값만으로 독립적으로 구성.
+// 결과물이 인위적이고 스톡사진 같았는데, 촬영 기법(필름 그레인/자연광/부자연스러운 포즈 지양)을
+// 넣어서 더 자연스럽게 나오도록 재작성함. AI가 생성한 텍스트 리포트(keywords/bodyType 등)에
+// 기대지 않고, 유저 입력값만으로 독립적으로 구성.
+// 트렌드 키워드는 별도 파일에 수동으로 박아두는 대신, 이미지 생성 모델이 요청 시점에 계절/연도를
+// 참고해서 알아서 판단하도록 프롬프트에 위임한다(트렌드 목록을 분기마다 직접 갱신할 필요 없음 —
+// 다만 모델 학습 데이터 기준의 "일반적인 계절 트렌드"라서, 실시간 유행과는 다를 수 있음).
 function buildImagePrompt({ gender, season, weather, tpo, mood, personalColor, tier }: ImagePromptInput): string {
   // RecommendForm의 성별 값은 'male'/'female'/'unspecified'(영문)라 그대로 판별한다.
   const genderTerm = gender === 'male' ? 'male' : 'female'
@@ -487,8 +489,11 @@ function buildImagePrompt({ gender, season, weather, tpo, mood, personalColor, t
     ? ` Color palette of the outfit should suit a "${personalColor}" personal color tone.`
     : ''
 
-  // 시즌 트렌드는 별도 설정 파일(trendKeywords)에서 불러와 결합
-  const trendPart = ` Subtly incorporate current fashion trend elements: ${getCurrentTrendKeywords()}.`
+  // 트렌드 키워드 목록을 직접 넘기는 대신, 모델이 계절/연도를 참고해 알아서 판단하게 한다.
+  const currentYear = new Date().getFullYear()
+  const trendPart = ` Subtly incorporate fashion trend elements that would feel current and on-trend for ${currentYear} ${
+    season || 'the season'
+  }, as a contemporary fashion-forward stylist would style it (avoid dated or generic styling).`
 
   const realismConstraints =
     ' Realistic fabric texture with natural wrinkles and drape, imperfect but ' +
