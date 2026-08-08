@@ -1,11 +1,33 @@
-import { Heart, Star } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Heart, Lock, Star } from 'lucide-react'
 import PlaceholderImage from './PlaceholderImage'
 import { TIER } from '../lib/tiers'
 
-// AI가 생성한 이미지가 있으면 그대로 보여주고, 없으면(생성 실패/미연동 등) 플레이스홀더로 대체한다.
+// AI가 생성한 이미지가 있으면 그대로 보여주고, 없으면(생성 실패 등) 플레이스홀더로 대체한다.
 function ResultImage({ src, alt, className }) {
   if (!src) return <PlaceholderImage className={className} />
   return <img src={src} alt={alt} className={`rounded-2xl object-cover ${className}`} />
+}
+
+// 게스트는 이미지를 아예 생성하지 않는다(로그인 전환 유인 실험). 빈 플레이스홀더 대신
+// 로그인하면 이미지를 볼 수 있다는 걸 알려주는 유도 박스를 보여준다.
+function GuestImageTeaser({ className }) {
+  return (
+    <div
+      className={`flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-cream-border bg-gradient-to-br from-cream-bg to-cream-border/40 p-6 text-center dark:border-night-border dark:from-night-bg dark:to-night-border/40 ${className}`}
+    >
+      <Lock size={22} className="text-cream-subtext dark:text-night-text/50" strokeWidth={1.5} />
+      <p className="text-xs text-cream-subtext dark:text-night-text/70">
+        로그인하면 AI가 만든 코디 이미지를 확인할 수 있어요
+      </p>
+      <Link
+        to="/login"
+        className="rounded-full bg-accent-green px-4 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        로그인하기
+      </Link>
+    </div>
+  )
 }
 
 function SaveButton({ saved, onToggleSave }) {
@@ -22,25 +44,40 @@ function SaveButton({ saved, onToggleSave }) {
   )
 }
 
-// 게스트와 로그인(member)은 출력 내용이 완전히 동일하고(이용 한도만 다름),
-// 게스트는 계정이 없어 저장 기능만 못 쓰므로 onToggleSave를 넘기지 않는다.
+// 게스트는 계정이 없어 저장 기능을 못 쓰므로 onToggleSave를 넘기지 않고,
+// 이미지도 아예 안 만들어주므로(로그인 전환 유인 실험) 대신 로그인 유도 박스를 보여준다.
 export default function ResultView({ tier, result, saved = false, onToggleSave }) {
   if (!result) return null
 
   if (tier === TIER.PREMIUM) return <PremiumResult result={result} saved={saved} onToggleSave={onToggleSave} />
-  return <MemberResult result={result} saved={saved} onToggleSave={tier === TIER.GUEST ? undefined : onToggleSave} />
+  return (
+    <MemberResult
+      tier={tier}
+      result={result}
+      saved={saved}
+      onToggleSave={tier === TIER.GUEST ? undefined : onToggleSave}
+    />
+  )
 }
 
-// 게스트/로그인 무료 티어 공통: 이미지 1장 + 기본 체형 진단 리포트.
-// 로그인은 여기에 styleTip(데일리 코디 제안)이 하나 더 붙는다(게스트는 result.styleTip이 없음).
-function MemberResult({ result, saved, onToggleSave }) {
+// 게스트/로그인 무료 티어 공통: 기본 체형 진단 리포트.
+// 로그인은 여기에 styleTip(데일리 코디 제안)과 이미지 1장이 추가된다(게스트는 둘 다 없음).
+function MemberResult({ tier, result, saved, onToggleSave }) {
   const { basicStyleGuide } = result
   return (
     <div className="mx-auto max-w-xl rounded-3xl border border-cream-border bg-cream-card p-6 shadow-sm dark:border-night-border dark:bg-night-card">
-      <div className="relative">
-        <ResultImage src={result.images?.[0]} alt={result.bodyType?.primary ?? 'AI 코디 추천'} className="aspect-[3/4] w-full" />
-        <SaveButton saved={saved} onToggleSave={onToggleSave} />
-      </div>
+      {tier === TIER.GUEST ? (
+        <GuestImageTeaser className="aspect-[3/4] w-full" />
+      ) : (
+        <div className="relative">
+          <ResultImage
+            src={result.images?.[0]}
+            alt={result.bodyType?.primary ?? 'AI 코디 추천'}
+            className="aspect-[3/4] w-full"
+          />
+          <SaveButton saved={saved} onToggleSave={onToggleSave} />
+        </div>
+      )}
 
       <p className="mt-4 font-serif text-xl font-semibold text-cream-text dark:text-night-text">
         {result.bodyType?.primary} 체형에 가까워 보여요

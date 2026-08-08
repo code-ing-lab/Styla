@@ -24,9 +24,17 @@
 
 | 티어 | 한도 | 결과 | 이미지 |
 |---|---|---|---|
-| 게스트 | **평생 1회** (localStorage 영구 플래그, 날짜 리셋 아님) | 기본 체형 진단 리포트 (`bodyType.primary`/`keywords`/`basicStyleGuide`) | 1장 (low quality) |
+| 게스트 | **평생 1회** (localStorage 영구 플래그, 날짜 리셋 아님) | 기본 체형 진단 리포트 (`bodyType.primary`/`keywords`/`basicStyleGuide`) | **없음** (아래 참고, 로그인 전환 유인 실험) |
 | 로그인(member) | 하루 3회 (DB `usage_logs`) | 게스트와 같은 기본 진단 + 데일리 코디 제안(`styleTip`) 1개 추가 | 1장 (low quality) |
 | 프리미엄 | 하루 5회 | bodyType/styleGuide/detailGuide/moodStyleGuide/summary 5섹션 심화 리포트 | 1장 (high quality) |
+
+**게스트는 이미지를 아예 생성하지 않음(실험적 변경).** 텍스트 리포트만으로도 로그인 없이
+받아볼 만한 가치가 있다고 판단했고, 이미지(가장 강한 후킹 요소)는 로그인해야만 주는
+방식으로 전환율을 테스트해보기로 함. `generate-recommendation`의 `generateWithRetry`가
+`tier === 'guest'`면 `callOpenAIImage` 자체를 호출하지 않고 `images: []`로 바로 반환.
+`ResultView.jsx`에는 빈 이미지 자리 대신 `GuestImageTeaser`(잠금 아이콘 + "로그인하기" 버튼)를
+넣어뒀음. **이 실험이 기대만큼 전환율을 못 끌어올리면 되돌릴 수 있는 변경**이니, 나중에
+지표 보고 롤백할지 판단할 것.
 
 **세 티어는 이용 한도뿐 아니라 출력 내용 자체도 다르다** — 각 티어의 시스템 프롬프트를
 사용자가 직접 작성해서 줬고(`generate-recommendation/index.ts`의 `GUEST_SYSTEM_PROMPT`/

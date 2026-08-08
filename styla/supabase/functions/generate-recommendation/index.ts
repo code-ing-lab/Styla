@@ -170,6 +170,12 @@ async function generateWithRetry(tier: Tier, input: RecommendRequestBody, maxRet
       const raw = await callOpenAIChat(systemPrompt, userContent, true)
       const parsed = JSON.parse(raw)
 
+      // 실험: 게스트는 이미지를 아예 생성하지 않는다(텍스트 리포트만 제공) —
+      // 이미지를 로그인 전환 유인으로 남겨두기 위함. 로그인/프리미엄은 기존대로 1장 생성.
+      if (tier === 'guest') {
+        return { ...parsed, images: [] }
+      }
+
       const imagePrompts = buildImagePrompts(tier, input, parsed)
       const images = await Promise.all(imagePrompts.map((prompt) => callOpenAIImage(prompt, IMAGE_QUALITY[tier])))
 
@@ -440,12 +446,13 @@ const SYSTEM_PROMPT: Record<Tier, string> = {
 
 // 1회 요청 = 이미지 1장 원칙. 프리미엄의 "다시 뽑기"는 이 함수를 다시 호출하는
 // 방식(하루 이용 한도 소진)으로 처리하므로 별도 이미지 개수 분기가 필요 없다.
+// (게스트는 generateWithRetry에서 이미지 생성 자체를 건너뛰므로 이 함수까지 안 옴 — member/premium만 호출됨)
 function buildImagePrompts(tier: Tier, input: RecommendRequestBody, parsed: Record<string, unknown>): string[] {
   const profile = describeInput(input)
   const keywords = Array.isArray(parsed.keywords) ? (parsed.keywords as string[]).join(', ') : ''
   const bodyType = (parsed.bodyType as { primary?: string } | undefined)?.primary ?? ''
 
-  if (tier === 'guest' || tier === 'member') {
+  if (tier === 'member') {
     const styleTip = typeof parsed.styleTip === 'string' ? parsed.styleTip : ''
     return [
       `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 체형 타입: ${bodyType}. 스타일 키워드: ${keywords}${

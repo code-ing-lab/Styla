@@ -7,8 +7,10 @@ export const OPENAI_IMAGE_MODEL = Deno.env.get('OPENAI_IMAGE_MODEL') ?? 'gpt-ima
 
 export type Tier = 'guest' | 'member' | 'premium'
 
-// 화질: 게스트/로그인은 원가 절감을 위해 low, 프리미엄만 high 유지 (원가 관리 목적).
+// 화질: 로그인은 원가 절감을 위해 low, 프리미엄만 high 유지 (원가 관리 목적).
 // 실제 화질 차이는 배포 후 육안으로 확인해서 조정 가능하도록 상수 하나로 분리해둔다.
+// guest 값은 현재 안 쓰임 — 게스트는 로그인 전환 유인 실험으로 이미지를 아예 생성하지
+// 않도록 바뀜(generate-recommendation/index.ts의 generateWithRetry 참고).
 export const IMAGE_QUALITY: Record<Tier, 'low' | 'medium' | 'high'> = {
   guest: 'low',
   member: 'low',
