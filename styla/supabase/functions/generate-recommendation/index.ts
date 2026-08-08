@@ -68,6 +68,14 @@ Deno.serve(async (req: Request) => {
     const isDevBypass = Boolean(DEV_BYPASS_EMAIL) && email === DEV_BYPASS_EMAIL
     const tier: Tier = isDevBypass && body.devForceTier ? body.devForceTier : realTier
 
+    // ⚠️ 임시 디버깅 로그. DEV_BYPASS_EMAIL이 왜 안 먹는지 확인되면 지울 것.
+    // DEV_BYPASS_EMAIL 값 자체는 절대 안 찍고, 로그인한 이메일과 설정 여부/일치 결과만 남긴다.
+    console.log('[dev-bypass-check]', {
+      incomingEmail: email,
+      devBypassEmailConfigured: Boolean(DEV_BYPASS_EMAIL),
+      isDevBypass,
+    })
+
     // 로그인/프리미엄은 하루 한도를 서버에서 직접 검증한다.
     // (클라이언트의 사전 체크는 UX용일 뿐, 실제 강제는 여기서만 해야 우회할 수 없다.)
     if (userId && !isDevBypass) {
