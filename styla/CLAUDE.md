@@ -112,15 +112,10 @@
 
 ## 아직 사용자가 안 했을 수도 있는 것 (재확인 필요)
 
-- `profiles` 테이블을 이미 Supabase에 만들어뒀다면(예전 `schema.sql`로 생성한 경우), 2-1에서 바뀐
-  컬럼을 맞추기 위해 아래 마이그레이션 SQL을 Supabase SQL Editor에서 직접 실행해야 함(테이블을 아직
-  안 만들었다면 최신 `schema.sql`로 새로 만들면 되므로 생략 가능):
-  ```sql
-  alter table profiles add column if not exists season text;
-  alter table profiles add column if not exists tpo text;
-  alter table profiles add column if not exists preferred_mood text;
-  alter table profiles alter column body_complex type text using array_to_string(body_complex, ', ');
-  ```
+- `supabase/migrations/2026-08-08_profiles_2-1_sync.sql` 실행 여부 — 2-1에서 바뀐 `profiles` 테이블
+  컬럼(`season`/`tpo`/`preferred_mood` 추가, `body_complex` text[]→text)을 맞추는 마이그레이션.
+  테이블이 이미 있든 없든, 몇 번을 실행해도 안전하게(idempotent) 작성해뒀음. Supabase 대시보드 →
+  SQL Editor에 파일 내용을 그대로 붙여넣어 실행하면 됨.
 - Edge Function 실제 배포 여부 (`npm run functions:deploy`)
 - `OPENAI_API_KEY` secret 등록 여부
 - `usage_logs` RLS 정책 마이그레이션 SQL 실행 여부:
