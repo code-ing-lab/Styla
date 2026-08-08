@@ -502,22 +502,33 @@ interface ImagePromptInput {
 // 트렌드 키워드는 별도 파일에 수동으로 박아두는 대신, 이미지 생성 모델이 요청 시점에 계절/연도를
 // 참고해서 알아서 판단하도록 프롬프트에 위임한다(트렌드 목록을 분기마다 직접 갱신할 필요 없음 —
 // 다만 모델 학습 데이터 기준의 "일반적인 계절 트렌드"라서, 실시간 유행과는 다를 수 있음).
+// 나이를 "approximately N years old" 식으로 문장 뒤쪽에 붙이면 모델이 다른 지시(촬영기법/
+// 트렌드/무드 등)에 밀려서 잘 안 챙기는 경향이 있었다. 대신 "나이대+성별"을 프롬프트 맨 앞
+// 주어 자리에 압축해서 넣어 가장 강하게 챙기도록 한다 (예: "A mid-20s female model").
+function describeAgeGender(age: number | undefined, genderTerm: string): string {
+  if (!age) return `a ${genderTerm} model`
+  const decade = Math.floor(age / 10) * 10
+  const remainder = age % 10
+  const period = remainder <= 3 ? 'early' : remainder <= 6 ? 'mid' : 'late'
+  return `a ${genderTerm} model in their ${period}-${decade}s (around ${age} years old)`
+}
+
 function buildImagePrompt({ gender, age, season, weather, tpo, mood, personalColor, tier }: ImagePromptInput): string {
   // RecommendForm의 성별 값은 'male'/'female'/'unspecified'(영문)라 그대로 판별한다.
   const genderTerm = gender === 'male' ? 'male' : 'female'
-  // 나이를 안 넣으면 모델이 임의의 나이대로 그려서 실제 사용자 나이와 동떨어진 결과가
-  // 나올 수 있다 — 이미지 프롬프트에도 반드시 나이를 반영한다(텍스트 리포트 쪽은 이미 반영돼 있었음).
-  const ageTerm = age ? ` who looks approximately ${age} years old` : ''
+  const subject = describeAgeGender(age, genderTerm)
 
-  // 자연스러움을 위한 촬영 기법 키워드 — "studio" 대신 다큐멘터리/스트리트 스냅 느낌으로
+  // 예전엔 "필름 그레인/모션 블러/살짝 초점 흐림" 같은 지시를 넣어서 자연스러움을 노렸는데,
+  // 그게 오히려 "저화질처럼 보인다"는 피드백으로 이어졌다. 자연스러운 포즈·표정은 유지하되,
+  // 화질을 떨어뜨리는 지시(그레인/블러)는 빼고 대신 선명함을 명시적으로 요구한다.
   const photographyStyle =
-    'Candid street-style snapshot, shot on 35mm film with natural grain, ' +
-    'shallow depth of field, soft natural daylight, slight motion blur suggesting ' +
-    'the subject is mid-stride or caught in a natural, unposed moment.'
+    'Candid street-style photo with sharp focus and clean, high-resolution detail, ' +
+    'soft natural daylight, a relaxed unposed moment rather than a stiff studio pose — ' +
+    "like a great shot from a professional fashion photographer's casual street shoot."
 
-  const base = `A ${genderTerm} model${ageTerm} captured in a candid street-style photo, ` +
-    `wearing a complete coordinated outfit suitable for ${tpo || 'daily'} occasions ` +
-    `during ${season || 'current season'} weather (${weather || 'mild'}). ${photographyStyle}`
+  const base = `A photo of ${subject}, ${photographyStyle} ` +
+    `Wearing a complete coordinated outfit suitable for ${tpo || 'daily'} occasions ` +
+    `during ${season || 'current season'} weather (${weather || 'mild'}).`
 
   const moodPart = mood ? ` The overall styling mood should feel ${mood}.` : ''
 
@@ -532,10 +543,10 @@ function buildImagePrompt({ gender, age, season, weather, tpo, mood, personalCol
   }, as a contemporary fashion-forward stylist would style it (avoid dated or generic styling).`
 
   const realismConstraints =
-    ' Realistic fabric texture with natural wrinkles and drape, imperfect but ' +
-    'flattering natural pose, genuine facial expression, avoid symmetrical ' +
-    'studio-catalog poses. No visible brand logos, no text or watermark overlays, ' +
-    'face softly out of sharp focus so the outfit remains the visual focus.'
+    ' Realistic fabric texture with natural wrinkles and drape, relaxed natural pose and ' +
+    'genuine expression rather than a stiff symmetrical catalog pose. No visible brand logos, ' +
+    'no text or watermark overlays. Image should be sharp and clean — avoid grainy, blurry, ' +
+    'or low-resolution look.'
 
   return base + moodPart + colorPart + trendPart + realismConstraints
 }
