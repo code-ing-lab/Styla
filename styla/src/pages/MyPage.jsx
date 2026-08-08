@@ -72,7 +72,9 @@ export default function MyPage() {
       {savedItems.length === 0 ? (
         <p className="mt-3 text-sm text-cream-subtext dark:text-night-text/60">아직 저장한 코디가 없어요.</p>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        // items-start를 안 주면 grid가 같은 행의 카드 높이를 다 맞춰버려서, 카드 하나만
+        // "전체 진단 보기"로 펼쳐도 옆 카드들까지 같이 늘어나 보인다 — 그걸 막기 위한 설정.
+        <div className="mt-4 grid grid-cols-1 items-start gap-4 sm:grid-cols-3">
           {savedItems.map((item) => (
             <SavedItemCard key={item.id} item={item} />
           ))}
@@ -86,7 +88,8 @@ export default function MyPage() {
 }
 
 // 저장 당시 AI가 준 진단 내용(result, jsonb)을 나중에 다시 열어볼 수 있게
-// 카드에 이미지 + 요약 + "전체 진단 보기" 토글을 둔다. 상세 UI는 2-3(필터 탭)에서 다듬을 예정.
+// 카드에 이미지 + 제목 + "전체 진단 보기" 토글을 둔다. 상단엔 짧은 정보만 두고,
+// 나머지는 토글 안에서 (JSON 원문이 아니라) 읽기 좋게 정리해서 보여준다.
 function SavedItemCard({ item }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -108,7 +111,6 @@ function SavedItemCard({ item }) {
           {[item.season, item.tpo].filter(Boolean).join(' · ')}
         </p>
       )}
-      <p className="mt-2 text-xs text-cream-subtext dark:text-night-text/70">{item.description}</p>
 
       {item.result && (
         <>
@@ -119,13 +121,55 @@ function SavedItemCard({ item }) {
           >
             {expanded ? '전체 진단 접기 ▲' : '전체 진단 보기 ▼'}
           </button>
-          {expanded && (
-            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-xl bg-cream-bg p-3 text-[10px] leading-relaxed text-cream-text dark:bg-night-bg dark:text-night-text">
-              {JSON.stringify(item.result, null, 2)}
-            </pre>
-          )}
+          {expanded && <SavedResultDetail tier={item.tier} result={item.result} />}
         </>
       )}
+    </div>
+  )
+}
+
+// item.result를 JSON 그대로 덤프하지 않고, 티어별 스키마에 맞춰 읽기 좋게 정리해서 보여준다.
+function SavedResultDetail({ tier, result }) {
+  if (tier === 'premium') {
+    return (
+      <div className="mt-2 space-y-2 rounded-xl bg-cream-bg p-3 text-xs leading-relaxed text-cream-subtext dark:bg-night-bg dark:text-night-text/70">
+        {result.bodyType?.primary && (
+          <p>
+            <span className="font-semibold text-cream-text dark:text-night-text">체형</span>{' '}
+            {result.bodyType.primary} {result.bodyType.primaryPercent}%
+            {result.bodyType.secondary && ` / ${result.bodyType.secondary} ${result.bodyType.secondaryPercent}%`}
+          </p>
+        )}
+        {result.moodStyleGuide?.moodKeyword && (
+          <p>
+            <span className="font-semibold text-cream-text dark:text-night-text">무드</span>{' '}
+            {result.moodStyleGuide.moodKeyword}
+          </p>
+        )}
+        {result.summary?.oneLiner && <p className="italic text-cream-text dark:text-night-text">"{result.summary.oneLiner}"</p>}
+        {result.summary?.keyFormulas?.length > 0 && (
+          <ul className="list-disc space-y-0.5 pl-4">
+            {result.summary.keyFormulas.map((formula, i) => (
+              <li key={i}>{formula}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
+
+  // 게스트/로그인 공통 스키마
+  return (
+    <div className="mt-2 space-y-2 rounded-xl bg-cream-bg p-3 text-xs leading-relaxed text-cream-subtext dark:bg-night-bg dark:text-night-text/70">
+      {result.bodyType?.primary && (
+        <p>
+          <span className="font-semibold text-cream-text dark:text-night-text">체형</span> {result.bodyType.primary}
+        </p>
+      )}
+      {result.basicStyleGuide?.ratioAnalysis && <p>{result.basicStyleGuide.ratioAnalysis}</p>}
+      {result.basicStyleGuide?.fitRecommendation && <p>{result.basicStyleGuide.fitRecommendation}</p>}
+      {result.basicStyleGuide?.tpoStylingTip && <p>{result.basicStyleGuide.tpoStylingTip}</p>}
+      {result.styleTip && <p className="font-medium text-accent-green">{result.styleTip}</p>}
     </div>
   )
 }

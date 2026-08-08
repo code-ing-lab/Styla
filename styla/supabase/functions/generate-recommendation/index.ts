@@ -167,16 +167,17 @@ async function generateWithRetry(tier: Tier, input: RecommendRequestBody, maxRet
     try {
       const systemPrompt = SYSTEM_PROMPT[tier]
       const userContent = `사용자 정보: ${describeInput(input)}`
-      const raw = await callOpenAIChat(systemPrompt, userContent, true)
-      const parsed = JSON.parse(raw)
 
       // 실험: 게스트는 이미지를 아예 생성하지 않는다(텍스트 리포트만 제공) —
-      // 이미지를 로그인 전환 유인으로 남겨두기 위함. 로그인/프리미엄은 기존대로 1장 생성.
+      // 이미지를 로그인 전환 유인으로 남겨두기 위함.
       if (tier === 'guest') {
-        return { ...parsed, images: [] }
+        const raw = await callOpenAIChat(systemPrompt, userContent, true)
+        return { ...JSON.parse(raw), images: [] }
       }
 
-      // "1회 요청 = 이미지 1장" 원칙이라 이미지는 항상 1장만 생성한다.
+      // 이미지 프롬프트가 텍스트 리포트 결과(parsed)에 더 이상 의존하지 않으므로
+      // (buildImagePrompt는 유저 입력값만 씀), 텍스트/이미지 생성을 동시에 돌려서
+      // 응답 속도를 단축한다. "1회 요청 = 이미지 1장" 원칙이라 이미지는 1장만.
       const imagePrompt = buildImagePrompt({
         gender: input.gender,
         season: input.season,
@@ -185,9 +186,13 @@ async function generateWithRetry(tier: Tier, input: RecommendRequestBody, maxRet
         personalColor: input.personalColor,
         tier,
       })
-      const images = [await callOpenAIImage(imagePrompt, IMAGE_QUALITY[tier])]
 
-      return { ...parsed, images }
+      const [raw, image] = await Promise.all([
+        callOpenAIChat(systemPrompt, userContent, true),
+        callOpenAIImage(imagePrompt, IMAGE_QUALITY[tier]),
+      ])
+
+      return { ...JSON.parse(raw), images: [image] }
     } catch (error) {
       lastError = error
       console.warn(`[generate-recommendation] attempt ${attempt} failed:`, error)

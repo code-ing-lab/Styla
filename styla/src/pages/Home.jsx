@@ -4,12 +4,15 @@ import RecommendForm from '../components/RecommendForm'
 import ResultView from '../components/ResultView'
 import LimitModal from '../components/LimitModal'
 import SubscribeBanner from '../components/SubscribeBanner'
+import LoadingScreen from '../components/LoadingScreen'
+import DevPreviewPanel from '../components/DevPreviewPanel'
 import { useAuth } from '../context/AuthContext'
 import { getTier, TIER, DAILY_LIMIT } from '../lib/tiers'
 import { hasUsedGuestTrial, markGuestTrialUsed } from '../lib/guestUsage'
 import { getTodayUsageCount } from '../lib/usageLogs'
 import { requestRecommendation, LimitExceededError } from '../lib/ai'
 import { supabase } from '../lib/supabaseClient'
+import { getMockResult } from '../lib/devMockResults'
 
 export default function Home() {
   const { isLoggedIn, isPremium, user, loading: authLoading } = useAuth()
@@ -26,6 +29,9 @@ export default function Home() {
   const [error, setError] = useState(null)
   const [showLimitModal, setShowLimitModal] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [savedItemId, setSavedItemId] = useState(null)
+  // 개발자 전용 목업 미리보기 티어. null이면 평소대로 실제 tier를 씀.
+  const [devTier, setDevTier] = useState(null)
   const prevIsLoggedIn = useRef(null)
 
   // 로그인/로그아웃으로 티어가 바뀌면 그 티어의 기본 화면으로 되돌린다.
@@ -40,6 +46,8 @@ export default function Home() {
   if (authLoading || step === null) {
     return <p className="py-24 text-center text-sm text-cream-subtext dark:text-night-text/60">불러오는 중...</p>
   }
+
+  const displayTier = devTier ?? tier
 
   const handleQuizComplete = () => setStep('form')
 
@@ -70,6 +78,7 @@ export default function Home() {
       setResult(data)
       setLastValues(values)
       setSaved(false)
+      setSavedItemId(null)
       setStep('result')
 
       // 실제 하루 한도 체크·증가는 서버(Edge Function)가 처리한다.
@@ -94,7 +103,21 @@ export default function Home() {
   }
 
   const handleToggleSave = async () => {
-    if (!result || saved) return
+    if (!result) return
+
+    // 이미 저장돼 있으면 하트를 다시 누른 건 "저장 취소" 요청이다.
+    if (saved) {
+      if (!savedItemId) return
+      try {
+        const { error: deleteError } = await supabase.from('saved_items').delete().eq('id', savedItemId)
+        if (deleteError) throw deleteError
+        setSaved(false)
+        setSavedItemId(null)
+      } catch (err) {
+        console.error('저장 취소 실패:', err)
+      }
+      return
+    }
 
     // member는 result.title이 따로 없는 스키마라(기본 체형 진단 리포트), bodyType.primary로 제목을 만든다.
     const title =
@@ -116,42 +139,70 @@ export default function Home() {
     try {
       // result(이미지 제외) 전체를 jsonb로 같이 저장해서, 나중에 마이페이지에서 저장한 코디를
       // 열어봤을 때 당시 AI가 준 진단 내용(체형분석/스타일가이드 등)을 그대로 복기할 수 있게 한다.
-      await supabase.from('saved_items').insert({
-        user_id: user.id,
-        tier,
-        title,
-        description,
-        tags: result.keywords ?? [],
-        image_url: result.images?.[0] ?? null,
-        season: lastValues?.season ?? null,
-        tpo: lastValues?.tpo ?? null,
-        result: resultWithoutImages,
-      })
+      const { data, error: insertError } = await supabase
+        .from('saved_items')
+        .insert({
+          user_id: user.id,
+          tier,
+          title,
+          description,
+          tags: result.keywords ?? [],
+          image_url: result.images?.[0] ?? null,
+          season: lastValues?.season ?? null,
+          tpo: lastValues?.tpo ?? null,
+          result: resultWithoutImages,
+        })
+        .select('id')
+        .single()
+      if (insertError) throw insertError
       setSaved(true)
+      setSavedItemId(data?.id ?? null)
     } catch (err) {
       console.error('저장 실패:', err)
     }
+  }
+
+  const handleDevPreview = (previewTier) => {
+    setDevTier(previewTier)
+    setResult(getMockResult(previewTier))
+    setSaved(false)
+    setSavedItemId(null)
+    setStep('result')
+  }
+
+  const handleExitDevPreview = () => {
+    setDevTier(null)
+    setResult(null)
+    setStep('form')
   }
 
   return (
     <div className="px-6 py-12">
       {step === 'quiz' && <StyleQuiz onComplete={handleQuizComplete} />}
 
-      {step === 'form' && (
-        <RecommendForm tier={tier} onSubmit={handleSubmit} submitting={submitting} />
-      )}
+      {step === 'form' && (submitting ? <LoadingScreen /> : <RecommendForm tier={tier} onSubmit={handleSubmit} submitting={submitting} />)}
 
       {step === 'result' && (
         <div className="space-y-8">
-          <ResultView tier={tier} result={result} saved={saved} onToggleSave={handleToggleSave} />
-          {tier === TIER.MEMBER && <SubscribeBanner />}
+          {devTier && (
+            <p className="mx-auto max-w-xl rounded-full bg-cream-text/90 px-4 py-1.5 text-center text-xs text-white dark:bg-night-text/90 dark:text-night-bg">
+              🔧 개발자 미리보기 모드 — 실제 저장된 데이터가 아닙니다
+            </p>
+          )}
+          <ResultView
+            tier={displayTier}
+            result={result}
+            saved={saved}
+            onToggleSave={devTier ? undefined : handleToggleSave}
+          />
+          {!devTier && tier === TIER.MEMBER && <SubscribeBanner />}
           <div className="text-center">
             <button
               type="button"
-              onClick={() => setStep('form')}
+              onClick={() => (devTier ? handleExitDevPreview() : setStep('form'))}
               className="text-sm text-cream-subtext underline underline-offset-4 hover:text-cream-text dark:text-night-text/60 dark:hover:text-night-text"
             >
-              다시 추천받기
+              {devTier ? '미리보기 종료' : '다시 추천받기'}
             </button>
           </div>
         </div>
@@ -171,6 +222,9 @@ export default function Home() {
         ctaLabel={tier === TIER.GUEST ? '로그인하기' : '프리미엄 구독하기'}
         ctaTo={tier === TIER.GUEST ? '/login' : '/subscribe'}
       />
+
+      {/* ⚠️ 개발자 테스트 전용 — 제거 방법은 DevPreviewPanel.jsx 상단 주석 참고 */}
+      <DevPreviewPanel onPreview={handleDevPreview} onExitPreview={handleExitDevPreview} previewTier={devTier} />
     </div>
   )
 }
