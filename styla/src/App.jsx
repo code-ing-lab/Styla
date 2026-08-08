@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header.jsx";
+import DevPanel from "./components/DevPanel.jsx";
 import SurveyPage from "./pages/SurveyPage.jsx";
 import ResultPage from "./pages/ResultPage.jsx";
 import CheckoutPage from "./pages/CheckoutPage.jsx";
@@ -11,6 +12,7 @@ function Layout({ children }) {
     <div className="min-h-screen bg-surface text-text-primary">
       <Header />
       <main>{children}</main>
+      {import.meta.env.DEV && <DevPanel />}
     </div>
   );
 }
