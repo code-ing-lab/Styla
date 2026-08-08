@@ -1,70 +1,58 @@
-import { Link, useNavigate } from 'react-router-dom'
-import { LogOut, Moon, Sparkle, Sun, User } from 'lucide-react'
-import { useTheme } from '../context/ThemeContext'
-import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabaseClient'
+import { Link } from "react-router-dom";
+import { useTheme } from "../context/ThemeContext";
+
+function SunIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <circle cx="12" cy="12" r="4.2" />
+      <path
+        strokeLinecap="round"
+        d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4M18.4 18.4L17 17M7 7 5.6 5.6"
+      />
+    </svg>
+  );
+}
+
+function MoonIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5Z"
+      />
+    </svg>
+  );
+}
 
 export default function Header() {
-  const { theme, toggleTheme } = useTheme()
-  const { isLoggedIn, isPremium } = useAuth()
-  const navigate = useNavigate()
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    navigate('/')
-  }
+  const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="border-b border-cream-border dark:border-night-border bg-cream-card dark:bg-night-card">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-        <Link
-          to="/"
-          className="flex items-center gap-1 font-serif text-2xl font-semibold tracking-tight text-cream-text dark:text-night-text"
-        >
-          Styla
-          <Sparkle size={14} className="text-accent-green" fill="currentColor" />
+    <header className="sticky top-0 z-40 border-b border-border-subtle bg-surface/90 backdrop-blur">
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 sm:px-8">
+        <Link to="/" className="flex flex-col leading-none">
+          <span className="font-report-title text-xl font-semibold tracking-tight text-text-primary sm:text-2xl">
+            STYLA
+          </span>
+          <span className="eyebrow mt-1 text-[0.6rem] sm:text-[0.65rem]">
+            Your Style Report
+          </span>
         </Link>
 
-        <div className="flex items-center gap-2">
-          {isLoggedIn ? (
-            <>
-              <Link
-                to="/mypage"
-                className="flex items-center gap-1.5 rounded-full border border-cream-border px-3 py-2 text-xs font-medium text-cream-text hover:bg-cream-bg dark:border-night-border dark:text-night-text dark:hover:bg-night-bg"
-              >
-                <User size={14} />
-                마이페이지
-                {isPremium && <span className="text-accent-gold">·프리미엄</span>}
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                aria-label="로그아웃"
-                className="flex items-center gap-1.5 rounded-full border border-cream-border px-3 py-2 text-xs font-medium text-cream-text hover:bg-cream-bg dark:border-night-border dark:text-night-text dark:hover:bg-night-bg"
-              >
-                <LogOut size={14} />
-                로그아웃
-              </button>
-            </>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label="다크모드 전환"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-border-subtle bg-surface-card text-text-primary transition hover:border-accent-green"
+        >
+          {theme === "dark" ? (
+            <SunIcon className="h-5 w-5" />
           ) : (
-            <Link
-              to="/login"
-              className="rounded-full border border-cream-border px-3 py-2 text-xs font-medium text-cream-text hover:bg-cream-bg dark:border-night-border dark:text-night-text dark:hover:bg-night-bg"
-            >
-              로그인
-            </Link>
+            <MoonIcon className="h-5 w-5" />
           )}
-
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label="다크모드 전환"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-cream-border dark:border-night-border text-cream-text dark:text-night-text hover:bg-cream-bg dark:hover:bg-night-bg transition-colors"
-          >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-        </div>
+        </button>
       </div>
     </header>
-  )
+  );
 }

@@ -1,20 +1,42 @@
-export const TIER = {
-  GUEST: 'guest',
-  MEMBER: 'member',
-  PREMIUM: 'premium',
-}
+export const TIERS = [
+  {
+    id: "tier1",
+    name: "실전 낱개 스페셜",
+    price: 2900,
+    badge: null,
+    description: "기본 체형 진단 + 현재 계절 코디 + 선택한 TPO 1개",
+    features: [
+      "기본 체형 & 분위기 진단",
+      "현재 계절 코디 1개",
+      "선택한 TPO 스타일링 1개",
+    ],
+  },
+  {
+    id: "tier2",
+    name: "4계절 올인원 패키지",
+    price: 4900,
+    badge: "가장 인기",
+    description: "기본 체형 진단 + 4계절 전체 코디 + 선택한 TPO 1개",
+    features: [
+      "기본 체형 & 분위기 진단",
+      "봄·여름·가을·겨울 전체 코디",
+      "선택한 TPO 스타일링 1개",
+    ],
+  },
+  {
+    id: "tier3",
+    name: "VIP TPO 프리패스",
+    price: 7900,
+    badge: null,
+    description: "기본 체형 진단 + 4계절 전체 + 모든 TPO 상황 전체",
+    features: [
+      "기본 체형 & 분위기 진단",
+      "봄·여름·가을·겨울 전체 코디",
+      "모든 TPO 상황 스타일링 전체",
+    ],
+  },
+];
 
-// 게스트는 하루 단위가 아니라 "평생 1회"라 이 값을 한도 체크에 쓰지 않는다
-// (src/lib/guestUsage.js의 hasUsedGuestTrial/markGuestTrialUsed 참고).
-// 로그인/프리미엄만 여기 값 그대로 매일 초기화되는 사용량 한도로 쓰인다.
-export const DAILY_LIMIT = {
-  [TIER.GUEST]: 1,
-  [TIER.MEMBER]: 3,
-  [TIER.PREMIUM]: 5,
-}
-
-export function getTier({ isLoggedIn, isPremium }) {
-  if (isPremium) return TIER.PREMIUM
-  if (isLoggedIn) return TIER.MEMBER
-  return TIER.GUEST
+export function getTierById(tierId) {
+  return TIERS.find((tier) => tier.id === tierId) ?? null;
 }

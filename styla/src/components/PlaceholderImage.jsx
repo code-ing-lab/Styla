@@ -1,12 +1,12 @@
-import { ImageIcon } from 'lucide-react'
-
-// TODO: 실제 코디 이미지 생성/소싱 연동 전까지 사용하는 플레이스홀더
-export default function PlaceholderImage({ className = '' }) {
+// TODO: gpt-image-1-mini로 실제 플랫레이 이미지 생성 후 교체
+export default function PlaceholderImage({ label, className = "" }) {
   return (
     <div
-      className={`flex items-center justify-center rounded-2xl border border-cream-border bg-gradient-to-br from-cream-bg to-cream-border/40 text-cream-subtext dark:border-night-border dark:from-night-bg dark:to-night-border/40 dark:text-night-text/50 ${className}`}
+      className={`flex aspect-[4/5] w-full items-center justify-center rounded-2xl border border-dashed border-border-subtle bg-black/5 dark:bg-white/5 ${className}`}
     >
-      <ImageIcon size={28} strokeWidth={1.5} />
+      <span className="px-2 text-center text-xs text-text-secondary">
+        {label ?? "이미지 준비 중"}
+      </span>
     </div>
-  )
+  );
 }

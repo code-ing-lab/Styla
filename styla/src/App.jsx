@@ -1,24 +1,29 @@
-import { Routes, Route } from 'react-router-dom'
-import Header from './components/Header'
-import Home from './pages/Home'
-import Login from './pages/Login'
-import Subscribe from './pages/Subscribe'
-import MyPage from './pages/MyPage'
-import ResetPassword from './pages/ResetPassword'
+import { Routes, Route, Navigate } from "react-router-dom";
+import Header from "./components/Header.jsx";
+import SurveyPage from "./pages/SurveyPage.jsx";
+import ResultPage from "./pages/ResultPage.jsx";
+import CheckoutPage from "./pages/CheckoutPage.jsx";
+import FullReportPage from "./pages/FullReportPage.jsx";
 
-function App() {
+function Layout({ children }) {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-surface text-text-primary">
       <Header />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/subscribe" element={<Subscribe />} />
-        <Route path="/mypage" element={<MyPage />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-      </Routes>
+      <main>{children}</main>
     </div>
-  )
+  );
 }
 
-export default App
+export default function App() {
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<SurveyPage />} />
+        <Route path="/result" element={<ResultPage />} />
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/report/:tier" element={<FullReportPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Layout>
+  );
+}
