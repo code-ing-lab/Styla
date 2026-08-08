@@ -4,7 +4,7 @@
 // 주입한다. 프론트엔드(src/**)에는 이 키가 절대 노출되지 않는다.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { DAILY_LIMIT, IMAGE_COUNT, IMAGE_QUALITY, OPENAI_IMAGE_MODEL, OPENAI_TEXT_MODEL, type Tier } from '../_shared/config.ts'
+import { DAILY_LIMIT, IMAGE_QUALITY, OPENAI_IMAGE_MODEL, OPENAI_TEXT_MODEL, type Tier } from '../_shared/config.ts'
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
@@ -207,7 +207,7 @@ async function callOpenAIChat(prompt: string, jsonMode: boolean): Promise<string
   return data.choices?.[0]?.message?.content ?? ''
 }
 
-async function callOpenAIImage(prompt: string, quality: 'medium' | 'high'): Promise<string> {
+async function callOpenAIImage(prompt: string, quality: 'low' | 'medium' | 'high'): Promise<string> {
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY가 설정되지 않았습니다 (Edge Function Secrets 확인)')
   }
@@ -268,15 +268,15 @@ function buildTextPrompt(tier: Tier, input: RecommendRequestBody): string {
   }
 
   if (tier === 'member') {
-    return `다음 사용자 정보를 참고해 서로 다른 코디 3벌을 추천하고, 아래 JSON 스키마를 정확히 지켜서 JSON만 출력해줘 (설명 문장 없이 JSON만):
+    return `다음 사용자 정보를 참고해 코디 한 벌을 추천하고, 매거진/블로그 스타일의 짧은 리포트를 작성해줘.
+아래 JSON 스키마를 정확히 지켜서 JSON만 출력해줘 (설명 문장 없이 JSON만):
 {
-  "items": [
-    { "keywords": ["string", "string"], "shortDescription": "string" }
-  ],
-  "analysis": "체형·분위기에 대한 2~3문장 분석",
-  "tips": "스타일링 팁 1~2문장"
+  "title": "string (매거진 타이틀처럼 감성적인 코디 제목, 15자 내외)",
+  "keywords": ["string", "string", "string"],
+  "paragraphs": ["string", "string"]
 }
-items 배열은 정확히 3개여야 해.
+paragraphs는 2~3개 문단으로, ①코디 설명 ②체형·분위기 분석 ③스타일링 팁 순서 내용이
+자연스럽게 이어지는 매거진 글처럼 작성해줘. 각 문단은 2~4문장.
 사용자 정보: ${profile}`
   }
 
@@ -305,37 +305,28 @@ confidence는 0~5 사이 소수, primaryPercent와 secondaryPercent의 합은 10
 }
 
 function buildGuestImagePrompt(input: RecommendRequestBody, description: string): string {
-  return `패션 화보 스타일의 코디 이미지를 만들어줘. 한 장의 이미지 안에 코디를 3가지 각도/구성으로 보여주는 1x3 그리드 콜라주 형태로 구성해줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${describeInput(
+  return `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${describeInput(
     input
   )}. 코디 컨셉: ${description}`
 }
 
-function buildImagePrompts(
-  tier: Tier,
-  input: RecommendRequestBody,
-  parsed: Record<string, unknown>
-): string[] {
+// 1회 요청 = 이미지 1장 원칙. 프리미엄의 "다시 뽑기"는 이 함수를 다시 호출하는
+// 방식(하루 이용 한도 소진)으로 처리하므로 별도 이미지 개수 분기가 필요 없다.
+function buildImagePrompts(tier: Tier, input: RecommendRequestBody, parsed: Record<string, unknown>): string[] {
   const profile = describeInput(input)
-  const count = IMAGE_COUNT[tier]
+  const keywords = Array.isArray(parsed.keywords) ? (parsed.keywords as string[]).join(', ') : ''
 
   if (tier === 'member') {
-    const items = Array.isArray(parsed.items) ? (parsed.items as Array<{ keywords?: string[]; shortDescription?: string }>) : []
-    return Array.from({ length: count }).map((_, i) => {
-      const item = items[i]
-      const keywords = item?.keywords?.join(', ') ?? ''
-      return `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 스타일 키워드: ${keywords}. 설명: ${
-        item?.shortDescription ?? ''
-      }`
-    })
+    return [
+      `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 스타일 키워드: ${keywords}. 컨셉: ${
+        parsed.title ?? ''
+      }`,
+    ]
   }
 
-  // premium: 카테고리별로 다른 각도의 코디 이미지를 만든다.
-  const CATEGORY_HINTS = ['상의 중심 데일리룩', '하의 중심 룩', '원피스 룩', '아우터 포인트 룩', '오피스/포멀 룩', '주말 캐주얼 룩']
-  const keywords = Array.isArray(parsed.keywords) ? (parsed.keywords as string[]).join(', ') : ''
-  return Array.from({ length: count }).map(
-    (_, i) =>
-      `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 전체 스타일 키워드: ${keywords}. 이번 컷의 컨셉: ${
-        CATEGORY_HINTS[i % CATEGORY_HINTS.length]
-      }`
-  )
+  // premium
+  const bodyType = (parsed.bodyType as { primary?: string } | undefined)?.primary ?? ''
+  return [
+    `패션 화보 스타일의 전신 코디 이미지 한 장을 만들어줘. 배경은 심플한 스튜디오 톤. 참고 정보: ${profile}. 스타일 키워드: ${keywords}. 체형 타입: ${bodyType}`,
+  ]
 }

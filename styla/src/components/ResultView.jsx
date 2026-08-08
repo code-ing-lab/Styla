@@ -8,76 +8,73 @@ function ResultImage({ src, alt, className }) {
   return <img src={src} alt={alt} className={`rounded-2xl object-cover ${className}`} />
 }
 
-export default function ResultView({ tier, result, savedIndexes = new Set(), onToggleSave }) {
+function SaveButton({ saved, onToggleSave }) {
+  if (!onToggleSave) return null
+  return (
+    <button
+      type="button"
+      onClick={onToggleSave}
+      aria-label="코디 저장"
+      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-accent-green shadow dark:bg-night-card/90"
+    >
+      <Heart size={16} fill={saved ? 'currentColor' : 'none'} />
+    </button>
+  )
+}
+
+export default function ResultView({ tier, result, saved = false, onToggleSave }) {
   if (!result) return null
 
   if (tier === TIER.GUEST) return <GuestResult result={result} />
-  if (tier === TIER.MEMBER) return <MemberResult result={result} savedIndexes={savedIndexes} onToggleSave={onToggleSave} />
-  return <PremiumResult result={result} />
+  if (tier === TIER.MEMBER) return <MemberResult result={result} saved={saved} onToggleSave={onToggleSave} />
+  return <PremiumResult result={result} saved={saved} onToggleSave={onToggleSave} />
 }
 
 function GuestResult({ result }) {
-  // 게스트는 개별 이미지가 아니라 1x3 그리드 형태로 합성된 이미지 한 장을 받는다.
   return (
-    <div className="mx-auto max-w-lg rounded-3xl border border-cream-border bg-cream-card p-6 shadow-sm dark:border-night-border dark:bg-night-card">
-      <ResultImage src={result.images?.[0]} alt="AI 코디 추천" className="aspect-[3/1] w-full" />
+    <div className="mx-auto max-w-md rounded-3xl border border-cream-border bg-cream-card p-6 shadow-sm dark:border-night-border dark:bg-night-card">
+      <ResultImage src={result.images?.[0]} alt="AI 코디 추천" className="aspect-[3/4] w-full" />
       <p className="mt-4 text-sm leading-relaxed text-cream-text dark:text-night-text">{result.description}</p>
     </div>
   )
 }
 
-function MemberResult({ result, savedIndexes, onToggleSave }) {
+// 로그인 무료 티어: 이미지 1장 + 매거진/블로그 스타일의 짧은 리포트
+function MemberResult({ result, saved, onToggleSave }) {
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-        {result.items?.map((item, index) => (
-          <div
-            key={index}
-            className="rounded-3xl border border-cream-border bg-cream-card p-4 shadow-sm dark:border-night-border dark:bg-night-card"
-          >
-            <div className="relative">
-              <ResultImage src={result.images?.[index]} alt={item.shortDescription} className="aspect-[3/4] w-full" />
-              <button
-                type="button"
-                onClick={() => onToggleSave?.(index)}
-                aria-label="코디 저장"
-                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-accent-green shadow dark:bg-night-card/90"
-              >
-                <Heart size={16} fill={savedIndexes.has(index) ? 'currentColor' : 'none'} />
-              </button>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {item.keywords?.map((kw) => (
-                <span
-                  key={kw}
-                  className="rounded-full bg-accent-green/10 px-2 py-0.5 text-xs text-accent-green"
-                >
-                  {kw}
-                </span>
-              ))}
-            </div>
-            <p className="mt-2 text-sm text-cream-text dark:text-night-text">{item.shortDescription}</p>
-          </div>
+    <div className="mx-auto max-w-xl rounded-3xl border border-cream-border bg-cream-card p-6 shadow-sm dark:border-night-border dark:bg-night-card">
+      <div className="relative">
+        <ResultImage src={result.images?.[0]} alt={result.title} className="aspect-[3/4] w-full" />
+        <SaveButton saved={saved} onToggleSave={onToggleSave} />
+      </div>
+
+      <h2 className="mt-4 font-serif text-xl font-semibold text-cream-text dark:text-night-text">{result.title}</h2>
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {result.keywords?.map((kw) => (
+          <span key={kw} className="rounded-full bg-accent-green/10 px-2 py-0.5 text-xs text-accent-green">
+            #{kw}
+          </span>
         ))}
       </div>
 
-      <div className="mt-6 rounded-3xl border border-cream-border bg-cream-card p-6 dark:border-night-border dark:bg-night-card">
-        <h3 className="font-serif text-lg font-semibold text-cream-text dark:text-night-text">체형 · 분위기 분석</h3>
-        <p className="mt-2 text-sm text-cream-subtext dark:text-night-text/70">{result.analysis}</p>
-        <h3 className="mt-4 font-serif text-lg font-semibold text-cream-text dark:text-night-text">스타일링 팁</h3>
-        <p className="mt-2 text-sm text-cream-subtext dark:text-night-text/70">{result.tips}</p>
+      <div className="mt-4 space-y-3">
+        {result.paragraphs?.map((paragraph, i) => (
+          <p key={i} className="text-sm leading-relaxed text-cream-text dark:text-night-text">
+            {paragraph}
+          </p>
+        ))}
       </div>
     </div>
   )
 }
 
-function PremiumResult({ result }) {
+function PremiumResult({ result, saved, onToggleSave }) {
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <ResultImage key={index} src={result.images?.[index]} alt={`추천 코디 ${index + 1}`} className="aspect-[3/4] w-full" />
-        ))}
+    <div className="mx-auto max-w-3xl">
+      <div className="relative mx-auto max-w-sm">
+        <ResultImage src={result.images?.[0]} alt="AI 코디 추천" className="aspect-[3/4] w-full" />
+        <SaveButton saved={saved} onToggleSave={onToggleSave} />
       </div>
 
       <div className="mt-8 rounded-3xl border border-accent-gold/40 bg-cream-card p-6 dark:border-accent-gold/30 dark:bg-night-card">

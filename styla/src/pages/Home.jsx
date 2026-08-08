@@ -24,7 +24,7 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
   const [showLimitModal, setShowLimitModal] = useState(false)
-  const [savedIndexes, setSavedIndexes] = useState(new Set())
+  const [saved, setSaved] = useState(false)
   const prevIsLoggedIn = useRef(null)
 
   // 로그인/로그아웃으로 티어가 바뀌면 그 티어의 기본 화면으로 되돌린다.
@@ -67,7 +67,7 @@ export default function Home() {
     try {
       const data = await requestRecommendation(values)
       setResult(data)
-      setSavedIndexes(new Set())
+      setSaved(false)
       setStep('result')
 
       // 실제 하루 한도 체크·증가는 서버(Edge Function)가 처리한다.
@@ -91,27 +91,22 @@ export default function Home() {
     }
   }
 
-  const handleToggleSave = async (index) => {
-    const item = result?.items?.[index]
-    if (!item) return
+  const handleToggleSave = async () => {
+    if (!result || saved) return
 
-    const next = new Set(savedIndexes)
-    const alreadySaved = next.has(index)
+    const title = tier === TIER.PREMIUM ? result.summary?.oneLiner ?? '프리미엄 코디 리포트' : result.title ?? '저장된 코디'
+    const description =
+      tier === TIER.PREMIUM ? result.summary?.keyFormulas?.join(' · ') ?? '' : result.paragraphs?.join('\n\n') ?? ''
 
     try {
-      if (!alreadySaved) {
-        await supabase.from('saved_items').insert({
-          user_id: user.id,
-          title: item.keywords?.join(' · ') ?? '저장된 코디',
-          description: item.shortDescription,
-          tags: item.keywords ?? [],
-          image_url: result.images?.[index] ?? null,
-        })
-        next.add(index)
-      } else {
-        next.delete(index)
-      }
-      setSavedIndexes(next)
+      await supabase.from('saved_items').insert({
+        user_id: user.id,
+        title,
+        description,
+        tags: result.keywords ?? [],
+        image_url: result.images?.[0] ?? null,
+      })
+      setSaved(true)
     } catch (err) {
       console.error('저장 실패:', err)
     }
@@ -127,7 +122,7 @@ export default function Home() {
 
       {step === 'result' && (
         <div className="space-y-8">
-          <ResultView tier={tier} result={result} savedIndexes={savedIndexes} onToggleSave={handleToggleSave} />
+          <ResultView tier={tier} result={result} saved={saved} onToggleSave={handleToggleSave} />
           {tier === TIER.MEMBER && <SubscribeBanner />}
           <div className="text-center">
             <button
